@@ -105,7 +105,7 @@ describe('resolveSearchQuery', () => {
   it('returns transaction redirect when block is not found', async () => {
     const txid = 'a'.repeat(64);
 
-    rpcCallMock.mockImplementation(async (method, params) => {
+    rpcCallMock.mockImplementation(async (method, _params) => {
       if (method === 'getblock') {
         throw new NotFoundError('not found');
       }

@@ -160,13 +160,36 @@ async function main() {
       throw new Error(`Unexpected home status: ${homeResponse.status}`);
     }
 
+    const tipResponse = await agent.get('/api/v1/tip');
+    const tipHeight = tipResponse.body?.data?.height;
+    const tipHash = tipResponse.body?.data?.bestHash;
+    if (tipResponse.status !== 200 || typeof tipHeight !== 'number' || !tipHash) {
+      throw new Error('Tip API did not return expected payload');
+    }
+
+    const blockResponse = await agent.get(`/api/v1/block/${tipHash}`);
+    if (blockResponse.status !== 200 || blockResponse.body?.data?.hash !== tipHash) {
+      throw new Error('Block API did not return expected payload');
+    }
+
     const recipient = await rpc(auth, 'getnewaddress', ['recipient']);
     const txid = await rpc(auth, 'sendtoaddress', [recipient, 0.1]);
+
+    await waitFor(async () => {
+      const txResponse = await agent.get(`/api/v1/tx/${txid}`);
+      return txResponse.status === 200 && txResponse.body?.data?.txid === txid;
+    }, { errorMessage: 'Transaction endpoint did not return in time' });
 
     await waitFor(async () => {
       const response = await agent.get('/mempool');
       return response.status === 200 && response.text.includes(txid);
     }, { errorMessage: 'Transaction did not appear in mempool dashboard' });
+
+    const mempoolApiResponse = await agent.get('/api/v1/mempool');
+    const mempoolSnapshotHasTx = mempoolApiResponse.body?.data?.recent?.some((entry) => entry.txid === txid);
+    if (mempoolApiResponse.status !== 200 || !mempoolSnapshotHasTx) {
+      throw new Error('Transaction missing from mempool API snapshot');
+    }
 
     await rpc(auth, 'generatetoaddress', [1, miningAddress]);
 
@@ -174,6 +197,18 @@ async function main() {
       const response = await agent.get('/mempool');
       return response.status === 200 && !response.text.includes(txid);
     }, { errorMessage: 'Transaction not cleared from mempool after confirmation' });
+
+    await waitFor(async () => {
+      const mempoolApiAfter = await agent.get('/api/v1/mempool');
+      const stillPresent = mempoolApiAfter.body?.data?.recent?.some((entry) => entry.txid === txid);
+      return mempoolApiAfter.status === 200 && !stillPresent;
+    }, { errorMessage: 'Transaction still present in mempool API snapshot after confirmation' });
+
+    await waitFor(async () => {
+      const tipAfterResponse = await agent.get('/api/v1/tip');
+      const tipAfterHeight = tipAfterResponse.body?.data?.height;
+      return tipAfterResponse.status === 200 && typeof tipAfterHeight === 'number' && tipAfterHeight > tipHeight;
+    }, { errorMessage: 'Tip API did not reflect new block height' });
 
     console.log('[regtest] Smoke tests passed');
 
