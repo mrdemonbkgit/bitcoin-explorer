@@ -48,6 +48,9 @@ This guide captures manual and automated checks for the near-term feature bundle
 - **Regtest Smoke:** `npm run test:regtest`
   - Requires `bitcoind` in PATH.
   - Validates end-to-end flows (ZMQ, mempool updates, cache invalidation) against a temporary regtest node.
+  - Optional toggles:
+    - `REGTEST_SCRAPE_METRICS=true` — scrape `/metrics` during the run.
+    - `REGTEST_ADDRESS_CHECK=true` — enable the address/xpub explorer, wait for indexer sync, and assert `/address` + `/api/v1/address` + `/xpub` responses.
 
 - Mid-term API + SSR milestone test additions are outlined in `docs/design/api-ssr-plan.md` (see Testing Strategy).
 

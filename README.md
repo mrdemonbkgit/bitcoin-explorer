@@ -53,7 +53,7 @@ npm run build
 - `npm run lint` — ESLint baseline for Node 24 with `eslint-plugin-n`
 - `npm run typecheck` — TypeScript `--noEmit` with `checkJs` coverage
 - `npm run test` / `npm run coverage` — Vitest unit tests plus Supertest-backed integration tests
-- `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary)
+- `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary). Set `REGTEST_SCRAPE_METRICS=true` to scrape `/metrics` or `REGTEST_ADDRESS_CHECK=true` to exercise the address/xpub explorer during the run.
 - `npm run build` — Creates `dist/` with runtime assets and production dependencies
 - `.github/workflows/ci.yml` — GitHub Actions workflow running lint → typecheck → coverage, audits prod deps, and uploads build + coverage artifacts
 - See `docs/TESTING.md` for a step-by-step testing checklist covering structured logging, ZMQ cache busting, the mempool dashboard, and the regtest smoke suite.

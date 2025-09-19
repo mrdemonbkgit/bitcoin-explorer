@@ -52,10 +52,10 @@
 - Errors: `{ "error": { "code": <http status>, "type": <AppError name>, "message": <string> }, "meta": {} }`.
 - Content negotiation: default to JSON; respond with `406` if `Accept` header excludes JSON.
 
-##### TODOs for Phase 1
-- Confirm whether block endpoint should return transactions inline or just txids/pagination (align with current HTML behaviour).
-- Determine if mempool histogram requires additional metadata (e.g. bucket boundaries).
-- Decide if we expose raw timestamps or formatted strings; proposal: API returns raw Unix timestamps/ISO strings, HTML performs formatting.
+##### Phase 1 Decisions
+- Block endpoint responses mirror the HTML experience and expose paginated txids only; full transaction bodies remain out-of-scope for now.
+- Mempool responses ship with the pre-defined histogram buckets rendered server-side, so no additional metadata is required beyond the current bucket labels/counts/vsize totals.
+- APIs continue to return raw Unix timestamps/ISO strings while HTML templates perform the human-friendly formatting.
 
 ### Phase 2 — Service Refactor
 - Audit existing services to ensure they return pure data objects.

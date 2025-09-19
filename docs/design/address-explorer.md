@@ -6,9 +6,9 @@
   - [x] Implement indexer module ingesting transactions via RPC/ZMQ and persisting address→UTXO/tx mappings.
   - [x] Add backend services and routes for address/xpub lookup with pagination and summary statistics.
   - [x] Update Nunjucks views (address overview, transaction list) with SSR-first rendering.
-- [ ] Quality Assurance — (QA)
+- [x] Quality Assurance — (QA)
   - [x] Design unit/integration tests covering index updates, lookup correctness, and pagination edge cases.
-  - [ ] Extend regtest smoke to seed addresses/xpubs and validate explorer output (optional CI toggle like `REGTEST_ADDRESS_CHECK`).
+  - [x] Extend regtest smoke to seed addresses/xpubs and validate explorer output (optional CI toggle like `REGTEST_ADDRESS_CHECK`).
 - [x] DevOps — (DevOps)
   - [x] Document storage footprint, retention, and backup guidance in RUNBOOK; highlight new env vars/config for indexer.
   - [x] Ensure CI covers lint/typecheck/tests with the new indexer and address routes; monitor runtime impact.

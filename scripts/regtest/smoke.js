@@ -18,6 +18,26 @@ function isMetricsEnabled() {
   return process.env.METRICS_ENABLED === 'true';
 }
 
+function isAddressCheckEnabled() {
+  return process.env.REGTEST_ADDRESS_CHECK === 'true';
+}
+
+function extractXpubFromDescriptor(descriptor) {
+  if (typeof descriptor !== 'string') {
+    throw new Error('Descriptor missing for address');
+  }
+  const closingBracketIndex = descriptor.indexOf(']');
+  if (closingBracketIndex === -1) {
+    throw new Error('Descriptor missing xpub metadata');
+  }
+  const remainder = descriptor.slice(closingBracketIndex + 1);
+  const candidate = remainder.split('/')[0];
+  if (!candidate) {
+    throw new Error('Unable to extract xpub from descriptor');
+  }
+  return candidate.replace(')', '').replace('#', '');
+}
+
 async function waitForFile(filePath, attempts = 50, intervalMs = 200) {
   for (let i = 0; i < attempts; i += 1) {
     try {
@@ -97,6 +117,7 @@ async function main() {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'bitcoin-explorer-regtest-'));
   const zmqBlock = `tcp://127.0.0.1:${ZMQ_BLOCK_PORT}`;
   const zmqTx = `tcp://127.0.0.1:${ZMQ_TX_PORT}`;
+  const addressCheckEnabled = isAddressCheckEnabled();
 
   let auth;
   let rpcStopped = false;
@@ -153,6 +174,11 @@ async function main() {
     process.env.METRICS_ENABLED = process.env.METRICS_ENABLED ?? (process.env.REGTEST_SCRAPE_METRICS === 'true' ? 'true' : 'false');
     process.env.METRICS_PATH = process.env.METRICS_PATH ?? METRICS_PATH_DEFAULT;
     process.env.METRICS_INCLUDE_DEFAULT = process.env.METRICS_INCLUDE_DEFAULT ?? 'false';
+    if (addressCheckEnabled) {
+      process.env.FEATURE_ADDRESS_EXPLORER = 'true';
+      process.env.ADDRESS_INDEX_PATH = process.env.ADDRESS_INDEX_PATH ?? path.join(dataDir, 'address-index.db');
+      process.env.ADDRESS_XPUB_GAP_LIMIT = process.env.ADDRESS_XPUB_GAP_LIMIT ?? '20';
+    }
 
     const [{ createApp }, { startZmqListener }] = await Promise.all([
       import('../../src/server.js'),
@@ -217,6 +243,37 @@ async function main() {
       const tipAfterHeight = tipAfterResponse.body?.data?.height;
       return tipAfterResponse.status === 200 && typeof tipAfterHeight === 'number' && tipAfterHeight > tipHeight;
     }, { errorMessage: 'Tip API did not reflect new block height' });
+
+    if (addressCheckEnabled) {
+      await waitFor(async () => {
+        const addressResponse = await agent.get(`/api/v1/address/${recipient}`);
+        const balance = addressResponse.body?.data?.summary?.balanceSat;
+        return addressResponse.status === 200 && typeof balance === 'number' && balance > 0;
+      }, { errorMessage: 'Address API did not confirm funded balance' });
+
+      const addressHtml = await agent.get(`/address/${recipient}`);
+      if (addressHtml.status !== 200 || !addressHtml.text.includes(recipient)) {
+        throw new Error('Address page did not render expected recipient');
+      }
+
+      const addressInfo = await rpc(auth, 'getaddressinfo', [recipient]);
+      const descriptor = addressInfo?.desc;
+      const xpub = extractXpubFromDescriptor(descriptor);
+
+      const xpubResponse = await agent.get(`/api/v1/xpub/${xpub}`);
+      if (xpubResponse.status !== 200 || !Array.isArray(xpubResponse.body?.data?.addresses)) {
+        throw new Error('Xpub API did not return expected payload');
+      }
+      const fundedEntry = xpubResponse.body.data.addresses.find((entry) => entry.address === recipient);
+      if (!fundedEntry || fundedEntry.balanceSat <= 0) {
+        throw new Error('Xpub API missing funded address data');
+      }
+
+      const xpubHtml = await agent.get(`/xpub/${xpub}`);
+      if (xpubHtml.status !== 200 || !xpubHtml.text.includes(xpub)) {
+        throw new Error('Xpub page did not render expected xpub');
+      }
+    }
 
     if (isMetricsEnabled()) {
       const metricsPath = process.env.METRICS_PATH ?? METRICS_PATH_DEFAULT;
