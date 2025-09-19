@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { Subscriber } from 'zeromq';
 import { CacheEvents, emit } from './cacheEvents.js';
 import { getLogger } from './logger.js';
+import { metrics } from './metrics.js';
 
 const DOUBLE_SHA256 = (buffer) => createHash('sha256').update(createHash('sha256').update(buffer).digest()).digest();
 
@@ -44,6 +45,7 @@ export async function startZmqListener({ blockEndpoint = null, txEndpoint = null
         }
       }
     }, 'zmq.subscribe');
+    metrics.recordZmqEvent({ topic, event: 'subscribe' });
 
     const reader = (async () => {
       try {
@@ -63,6 +65,7 @@ export async function startZmqListener({ blockEndpoint = null, txEndpoint = null
                 }
               }
             }, 'zmq.message');
+            metrics.recordZmqEvent({ topic: topicName, event: 'message' });
           } catch (error) {
             logger.error({
               context: {
@@ -73,6 +76,7 @@ export async function startZmqListener({ blockEndpoint = null, txEndpoint = null
               },
               err: error
             }, 'zmq.handler.error');
+            metrics.recordZmqEvent({ topic: topicName, event: 'handler_error' });
           }
         }
       } catch (error) {
@@ -87,6 +91,7 @@ export async function startZmqListener({ blockEndpoint = null, txEndpoint = null
             },
             err: error
           }, 'zmq.stream.error');
+          metrics.recordZmqEvent({ topic, event: 'stream_error' });
         }
       }
     })();
@@ -116,7 +121,7 @@ export async function startZmqListener({ blockEndpoint = null, txEndpoint = null
 
   return async () => {
     closed = true;
-    await Promise.all(sockets.map(async ({ subscriber }) => {
+    await Promise.all(sockets.map(async ({ subscriber, topic }) => {
       try {
         subscriber.close();
       } catch (error) {
@@ -128,6 +133,7 @@ export async function startZmqListener({ blockEndpoint = null, txEndpoint = null
           },
           err: error
         }, 'zmq.close.error');
+        metrics.recordZmqEvent({ topic: topic ?? 'unknown', event: 'close_error' });
       }
     }));
   };

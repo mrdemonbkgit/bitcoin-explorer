@@ -2,6 +2,7 @@ import { createCache } from '../cache.js';
 import { rpcCall } from '../rpc.js';
 import { config } from '../config.js';
 import { CacheEvents, subscribe } from '../infra/cacheEvents.js';
+import { metrics } from '../infra/metrics.js';
 
 const MEMPOOL_PAGE_SIZE = 25;
 const SATS_IN_BTC = 100_000_000;
@@ -14,7 +15,7 @@ const FEE_BUCKETS = [
   { label: '50+', min: 50, max: Infinity }
 ];
 
-const mempoolCache = createCache(config.cache.mempool);
+const mempoolCache = createCache(config.cache.mempool, { name: 'mempool', metrics });
 
 subscribe(CacheEvents.BLOCK_NEW, () => {
   mempoolCache.clear();

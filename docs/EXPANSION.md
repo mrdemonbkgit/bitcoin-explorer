@@ -29,7 +29,7 @@ This document captures ambitious growth directions for the explorer so we can pl
 - **Data Lifecycle**: design backup, pruning, and migration flows for any persisted artifacts.
 
 ### 4. Operations & Observability
-- **Metrics & Tracing**: ship OpenTelemetry spans, structured logs, and Prometheus-compatible metrics (RPC latency, cache hit ratio, render time).
+- **Metrics & Tracing**: ship OpenTelemetry spans, structured logs, and Prometheus-compatible metrics (RPC latency, cache hit ratio, render time). See `docs/design/metrics-exporter.md` for the dedicated metrics exporter implementation plan.
 - **Health & Diagnostics**: dedicated status endpoint, configuration dump (redacting secrets), and self-check routines.
 - **Deployment Profiles**: container images, IaC templates, and scripted provisioning for dev/staging/prod with smoke tests in CI/regtest.
 - **Multi-Core Awareness**: support failover or load balancing across archival/pruned nodes with heartbeat checks.
@@ -46,7 +46,7 @@ This document captures ambitious growth directions for the explorer so we can pl
 
 ## Milestone Sketch
 - **Near-Term (Quarter 1)** ✅ Completed — ZMQ cache busting, mempool dashboard, structured logging, and CI smoke tests are live.
-- **Mid-Term (Quarter 2)** ▶ In progress — API surface (see `docs/design/api-ssr-plan.md`), address/xpub explorer with local index, WebSocket notifications, metrics exporter; coordinate scope with `docs/PRD.md` Section 15 and keep `docs/RUNBOOK.md`/`docs/TESTING.md` updated as milestones land.
+- **Mid-Term (Quarter 2)** ▶ In progress — API surface (see `docs/design/api-ssr-plan.md`), address/xpub explorer with local index, WebSocket notifications, metrics exporter (plan: `docs/design/metrics-exporter.md`); coordinate scope with `docs/PRD.md` Section 15 and keep `docs/RUNBOOK.md`/`docs/TESTING.md` updated as milestones land.
 - **Long-Term (Quarter 3+)**: pluggable modules, analytics warehouse, multi-node awareness, optional authZ/authN stack.
 
 ### Near-Term Bundle Implementation Plan

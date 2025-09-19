@@ -65,3 +65,14 @@ Keep this document updated as new features land or testing strategy evolves.
 3. Retrieve a known transaction with `curl http://<HOST>:<PORT>/api/v1/tx/<txid>` and ensure totals (`inputValue`, `outputValue`, `fee`, `isRbf`) align with the `/tx/<txid>` page.
 4. If the mempool dashboard is enabled, run `curl http://<HOST>:<PORT>/api/v1/mempool` to spot the recent transaction list; compare it against the `/mempool` table during mempool growth and after confirmations.
 5. Repeat the sequence after mining/broadcasting on regtest to watch the API reflect new state without restarting the server.
+
+## 7. Metrics Exporter
+1. Enable metrics locally by setting in `.env`:
+   ```ini
+   METRICS_ENABLED=true
+   METRICS_PATH=/metrics
+   ```
+2. Hit the exporter with `curl http://<HOST>:<PORT>/metrics` and confirm it returns HTTP 200 along with series like `explorer_http_requests_total` and `explorer_rpc_requests_total`.
+3. Trigger traffic (home page, `/api/v1/tip`, `/mempool`) and re-run the curl to ensure counters increment.
+4. Optional: set `REGTEST_SCRAPE_METRICS=true` before `npm run test:regtest` to have the smoke suite verify the exporter during CI.
+5. When metrics are disabled, the endpoint should return HTTP 404 with `Metrics disabled` in the body.

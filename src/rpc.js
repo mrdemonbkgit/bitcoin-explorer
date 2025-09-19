@@ -5,6 +5,7 @@ import { Agent as HttpsAgent } from 'node:https';
 import { config } from './config.js';
 import { BadRequestError, NotFoundError, ServiceUnavailableError } from './errors.js';
 import { getRequestLogger } from './infra/logger.js';
+import { metrics } from './infra/metrics.js';
 
 const httpAgent = new HttpAgent({ keepAlive: true, maxSockets: 4 });
 const httpsAgent = new HttpsAgent({ keepAlive: true, maxSockets: 4 });
@@ -103,6 +104,7 @@ export async function rpcCall(method, params = []) {
         }
       }
     }, 'rpc.success');
+    metrics.observeRpcRequest({ method, outcome: 'success', durationMs });
     return data.result;
   } catch (error) {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
@@ -130,6 +132,7 @@ export async function rpcCall(method, params = []) {
       } else {
         logWarn();
       }
+      metrics.observeRpcRequest({ method, outcome: 'error', durationMs });
       throw error;
     }
 
@@ -139,10 +142,12 @@ export async function rpcCall(method, params = []) {
         context,
         err: error
       }, 'rpc.auth.retry');
+      metrics.observeRpcRequest({ method, outcome: 'error', durationMs });
       return rpcCall(method, params);
     }
     const mapped = mapAxiosError(error);
     logError();
+    metrics.observeRpcRequest({ method, outcome: 'error', durationMs });
     throw mapped;
   }
 }

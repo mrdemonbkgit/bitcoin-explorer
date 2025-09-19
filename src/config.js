@@ -4,6 +4,20 @@ import { z } from 'zod';
 const LogLevelEnum = z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']);
 const ZmqUriSchema = z.string().regex(/^(?:tcp|ipc):\/\//, 'ZMQ endpoint must start with tcp:// or ipc://').optional();
 
+const BooleanStringSchema = z.string().transform((value, ctx) => {
+  const normalised = value.trim().toLowerCase();
+  if (['true', '1', 'yes', 'y', 'on'].includes(normalised)) {
+    return true;
+  }
+  if (['false', '0', 'no', 'n', 'off', ''].includes(normalised)) {
+    return false;
+  }
+  ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Invalid boolean value: ${value}` });
+  return z.NEVER;
+});
+
+const BooleanSchema = z.union([z.boolean(), BooleanStringSchema]);
+
 const ConfigSchema = z.object({
   BITCOIN_RPC_URL: z.string().url(),
   BITCOIN_RPC_COOKIE: z.string().min(1).optional(),
@@ -19,8 +33,11 @@ const ConfigSchema = z.object({
   CACHE_TTL_TX: z.coerce.number().int().nonnegative().default(600000),
   CACHE_TTL_MEMPOOL: z.coerce.number().int().nonnegative().default(5000),
   LOG_LEVEL: LogLevelEnum.default('info'),
-  LOG_PRETTY: z.coerce.boolean().default(false),
-  FEATURE_MEMPOOL_DASHBOARD: z.coerce.boolean().default(true)
+  LOG_PRETTY: BooleanSchema.default(false),
+  FEATURE_MEMPOOL_DASHBOARD: BooleanSchema.default(true),
+  METRICS_ENABLED: BooleanSchema.default(false),
+  METRICS_PATH: z.string().regex(/^\//, 'Metrics path must start with /').default('/metrics'),
+  METRICS_INCLUDE_DEFAULT: BooleanSchema.default(false)
 }).superRefine((data, ctx) => {
   const hasCookie = Boolean(data.BITCOIN_RPC_COOKIE);
   const hasUserPass = Boolean(data.BITCOIN_RPC_USER && data.BITCOIN_RPC_PASSWORD);
@@ -62,5 +79,10 @@ export const config = Object.freeze({
   },
   features: {
     mempoolDashboard: cfg.FEATURE_MEMPOOL_DASHBOARD
+  },
+  metrics: {
+    enabled: cfg.METRICS_ENABLED,
+    path: cfg.METRICS_PATH,
+    includeDefault: cfg.METRICS_INCLUDE_DEFAULT
   }
 });

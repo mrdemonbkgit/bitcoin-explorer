@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createRequestLogger, runWithRequestLogger } from '../infra/logger.js';
+import { metrics } from '../infra/metrics.js';
 
 const HR_TIME_DIVISOR_MS = 1e6;
 
@@ -7,7 +8,7 @@ export function requestLogger() {
   return (req, res, next) => {
     const requestId = randomUUID();
     const route = req.originalUrl || req.url || '';
-    const method = req.method || 'GET';
+    const method = (req.method || 'GET').toUpperCase();
     const startTime = process.hrtime.bigint();
 
     const requestContext = {
@@ -33,6 +34,12 @@ export function requestLogger() {
 
     const logFinish = (event = 'request.finish') => {
       const durationMs = Number(process.hrtime.bigint() - startTime) / HR_TIME_DIVISOR_MS;
+      metrics.observeHttpRequest({
+        req,
+        method,
+        statusCode: res.statusCode,
+        startedAt: startTime
+      });
       logger.info({
         context: {
           ...requestContext,

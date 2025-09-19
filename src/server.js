@@ -16,6 +16,7 @@ import {
 import apiRouter from './routes/api/index.js';
 import { asyncHandler } from './utils/asyncHandler.js';
 import { getMempoolViewModel } from './services/mempoolService.js';
+import { metricsEnabled, metricsHandler } from './infra/metrics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +32,8 @@ export function createApp() {
     req.isApiRequest = () => (req.path?.startsWith('/api/') || req.headers.accept?.includes('application/json'));
     next();
   });
+
+  app.get(config.metrics.path, (req, res, next) => metricsHandler(req, res, next));
 
   nunjucks.configure(viewsPath, {
     autoescape: true,
@@ -192,6 +195,14 @@ function startServer() {
         port: config.app.port
       }
     }, `Explorer listening on ${config.app.bind}:${config.app.port}`);
+    if (metricsEnabled) {
+      logger.info({
+        context: {
+          event: 'metrics.enabled',
+          path: config.metrics.path
+        }
+      }, `Metrics endpoint available at ${config.metrics.path}`);
+    }
   });
 
   const shutdown = async (signal) => {

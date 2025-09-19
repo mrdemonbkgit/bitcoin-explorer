@@ -3,10 +3,11 @@ import { rpcCall } from '../rpc.js';
 import { config } from '../config.js';
 import { BadRequestError, NotFoundError } from '../errors.js';
 import { CacheEvents, subscribe } from '../infra/cacheEvents.js';
+import { metrics } from '../infra/metrics.js';
 
-const tipCache = createCache(config.cache.tip);
-const blockCache = createCache(config.cache.block);
-const txCache = createCache(config.cache.tx);
+const tipCache = createCache(config.cache.tip, { name: 'tip', metrics });
+const blockCache = createCache(config.cache.block, { name: 'block', metrics });
+const txCache = createCache(config.cache.tx, { name: 'tx', metrics });
 
 export const BLOCK_PAGE_SIZE = 25;
 const HEX_64 = /^[0-9a-fA-F]{64}$/;

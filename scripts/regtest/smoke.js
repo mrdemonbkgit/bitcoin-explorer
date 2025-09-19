@@ -12,6 +12,11 @@ const RPC_PORT = 18443;
 const ZMQ_BLOCK_PORT = 28332;
 const ZMQ_TX_PORT = 28333;
 const RPC_URL = `http://127.0.0.1:${RPC_PORT}`;
+const METRICS_PATH_DEFAULT = '/metrics';
+
+function isMetricsEnabled() {
+  return process.env.METRICS_ENABLED === 'true';
+}
 
 async function waitForFile(filePath, attempts = 50, intervalMs = 200) {
   for (let i = 0; i < attempts; i += 1) {
@@ -145,6 +150,9 @@ async function main() {
     process.env.BITCOIN_ZMQ_TX = zmqTx;
     process.env.FEATURE_MEMPOOL_DASHBOARD = process.env.FEATURE_MEMPOOL_DASHBOARD ?? 'true';
     process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'error';
+    process.env.METRICS_ENABLED = process.env.METRICS_ENABLED ?? (process.env.REGTEST_SCRAPE_METRICS === 'true' ? 'true' : 'false');
+    process.env.METRICS_PATH = process.env.METRICS_PATH ?? METRICS_PATH_DEFAULT;
+    process.env.METRICS_INCLUDE_DEFAULT = process.env.METRICS_INCLUDE_DEFAULT ?? 'false';
 
     const [{ createApp }, { startZmqListener }] = await Promise.all([
       import('../../src/server.js'),
@@ -209,6 +217,14 @@ async function main() {
       const tipAfterHeight = tipAfterResponse.body?.data?.height;
       return tipAfterResponse.status === 200 && typeof tipAfterHeight === 'number' && tipAfterHeight > tipHeight;
     }, { errorMessage: 'Tip API did not reflect new block height' });
+
+    if (isMetricsEnabled()) {
+      const metricsPath = process.env.METRICS_PATH ?? METRICS_PATH_DEFAULT;
+      await waitFor(async () => {
+        const metricsResponse = await agent.get(metricsPath);
+        return metricsResponse.status === 200 && metricsResponse.text.includes('explorer_http_requests_total');
+      }, { errorMessage: 'Metrics endpoint did not expose expected counters' });
+    }
 
     console.log('[regtest] Smoke tests passed');
 

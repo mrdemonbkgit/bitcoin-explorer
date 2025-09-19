@@ -34,6 +34,7 @@ Additional environment controls:
 - `CACHE_TTL_MEMPOOL` — TTL (ms) for the mempool snapshot cache (default 5s).
 - `LOG_LEVEL`, `LOG_PRETTY` — structured logging verbosity and formatting.
 - `FEATURE_MEMPOOL_DASHBOARD` — disable the `/mempool` route when set to `false`.
+- `METRICS_ENABLED`, `METRICS_PATH`, `METRICS_INCLUDE_DEFAULT` — toggle the Prometheus metrics endpoint (default `/metrics` on the main bind). Leave disabled unless scraping from a trusted LAN host.
 
 ## Deployment
 ```bash
@@ -71,6 +72,18 @@ npm run test:regtest
 - Logs emit JSON via `pino`; default level is `info`. Adjust with `LOG_LEVEL`.
 - Use `LOG_PRETTY=true` locally for human-friendly output.
 - Pipe stdout/stderr into journald/systemd or ship to your log aggregator.
+
+## Metrics Exporter
+- Enable metrics by setting `METRICS_ENABLED=true` (and optionally `METRICS_PATH` if `/metrics` conflicts with an upstream component). Keep the endpoint LAN-limited; expose it via reverse proxy or firewall rules as needed.
+- The explorer exposes Prometheus text format counters/histograms for HTTP requests, Bitcoin RPC calls, cache hits/misses, and ZMQ events. Example scrape job:
+  ```yaml
+  - job_name: 'bitcoin-explorer'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['node.lan:28765']
+  ```
+- Set `METRICS_INCLUDE_DEFAULT=true` to export Node.js process metrics (heap usage, event loop lag). Default is `false` to avoid leaking host data.
+- When troubleshooting, `curl http://<host>:<port>/metrics` should return 200 with `explorer_http_requests_total`; if disabled it returns 404.
 
 ## Incident Response
 1. Confirm Bitcoin Core RPC availability (`bitcoin-cli getblockcount`).

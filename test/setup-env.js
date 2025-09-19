@@ -11,3 +11,6 @@ process.env.CACHE_TTL_MEMPOOL = process.env.CACHE_TTL_MEMPOOL ?? '5000';
 process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'error';
 process.env.LOG_PRETTY = process.env.LOG_PRETTY ?? 'false';
 process.env.FEATURE_MEMPOOL_DASHBOARD = process.env.FEATURE_MEMPOOL_DASHBOARD ?? 'true';
+process.env.METRICS_ENABLED = process.env.METRICS_ENABLED ?? 'false';
+process.env.METRICS_PATH = process.env.METRICS_PATH ?? '/metrics';
+process.env.METRICS_INCLUDE_DEFAULT = process.env.METRICS_INCLUDE_DEFAULT ?? 'false';
