@@ -79,12 +79,18 @@ describe('getTransactionData', () => {
           vin: [
             {
               value: 1.2,
-              sequence: 0xfffffffd
+              sequence: 0xfffffffd,
+              prevout: {
+                value: 1.2,
+                scriptPubKey: {
+                  address: 'input-addr-1'
+                }
+              }
             }
           ],
           vout: [
-            { value: 0.5 },
-            { value: 0.6999 }
+            { value: 0.5, scriptPubKey: { addresses: ['output-addr-1'] } },
+            { value: 0.6999, scriptPubKey: { type: 'nulldata' } }
           ]
         };
       }
@@ -98,6 +104,9 @@ describe('getTransactionData', () => {
     expect(data.outputValue).toBeCloseTo(1.1999);
     expect(data.fee).toBeCloseTo(0.0001);
     expect(data.isRbf).toBe(true);
+    expect(data.vin[0].addresses).toEqual(['input-addr-1']);
+    expect(data.vout[0].addresses).toEqual(['output-addr-1']);
+    expect(data.vout[1].addresses).toEqual([]);
   });
 });
 

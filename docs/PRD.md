@@ -44,6 +44,7 @@ A **local-LAN accessible**, read-only Bitcoin block explorer implemented with a 
 
 3. **Transaction (`/tx/{txid}`)**
    - Render: inputs/outputs with value sums, vsize/weight, locktime.
+   - Show resolved addresses for each input/output when script metadata is available.
    - **RBF hint** = true if any input `sequence < 0xfffffffe`.
 
 4. **Search (`/search?q=`)**

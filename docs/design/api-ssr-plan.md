@@ -44,7 +44,7 @@
 |----------|-------------|--------------|-------------------|
 | `GET /api/v1/tip` | Chain tip summary | None | `{ "data": { "chain": "main", "height": 800000, "bestHash": "...", "mempool": {"txCount":123, "bytes":456789}, "feeEstimates": {"1": 12.3, "3": 8.1, "6": 5.4 } }, "meta": { "generatedAt": ISODateString } }` |
 | `GET /api/v1/block/:id` | Block details by height/hash | `page` (optional, default `1`) | `{ "data": { "hash": "...", "height": 123, "time": 1700000000, "size": 123456, "weight": 400000, "version": 4, "bits": "1d00ffff", "difficulty": 55.1, "previousBlockHash": "...", "nextBlockHash": "...", "txCount": 2154, "txids": ["..."], "pagination": {"page":1,"totalPages":87,"pageSize":25} }, "meta": { } }` |
-| `GET /api/v1/tx/:txid` | Transaction details | None | `{ "data": { "txid": "...", "hash": "...", "size": 250, "weight": 1000, "locktime": 0, "vin": [...], "vout": [...], "inputValue": 1.5, "outputValue": 1.499, "fee": 0.001, "isRbf": false }, "meta": {} }` |
+| `GET /api/v1/tx/:txid` | Transaction details (addresses, totals, RBF hint) | None | `{ "data": { "txid": "...", "hash": "...", "size": 250, "weight": 1000, "locktime": 0, "vin": [...], "vout": [...], "inputValue": 1.5, "outputValue": 1.499, "fee": 0.001, "isRbf": false }, "meta": {} }` |
 | `GET /api/v1/mempool` | Mempool snapshot | `page` (optional, default `1`) | `{ "data": { "updatedAt": ISODateString, "txCount": 12000, "virtualSize": 8_500_000, "medianFee": 25.3, "histogram": [{"range":"1-5","count":123,"vsize":4567}, ...], "recent": [{"txid":"...","feerate":12.5,"vsize":200,"ageSeconds":34,"isRbf":false}] }, "meta": { "pagination": {"page":1,"pageSize":25,"totalPages":480} } }` |
 
 ##### Envelope & Error Shape

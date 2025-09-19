@@ -17,7 +17,7 @@ A lightweight, LAN-first Bitcoin block explorer that runs alongside your own Bit
 
 ## Features
 - **Home dashboard** – chain tip, mempool counters, fee estimates, and global search.
-- **Blocks & transactions** – detailed block pages (height/hash) and transaction breakdowns with RBF hinting.
+- **Blocks & transactions** – detailed block pages (height/hash) and transaction breakdowns with per-input/output addresses plus RBF hinting.
 - **Smart search** – accepts heights, block hashes, txids, addresses, and xpubs (routes to the appropriate view).
 - **Mempool dashboard** *(feature flagged)* – live histogram and recent transactions, refreshed via ZMQ/WebSockets when enabled.
 - **Address explorer** *(feature flagged)* – SQLite-backed balances, UTXOs, and paginated history for any address.
@@ -102,7 +102,7 @@ ADDRESS_XPUB_GAP_LIMIT=20
 ## Available Routes
 - `/` — Home dashboard with chain tip, mempool status, fee estimates, and search box
 - `/block/:id` — Block details by height or hash with paginated txid listing
-- `/tx/:txid` — Transaction view with inputs, outputs, totals, and RBF hint
+- `/tx/:txid` — Transaction view with inputs, outputs, resolved addresses, totals, and RBF hint
 - `/search?q=` — Smart search that routes to the relevant block or transaction
 - `/mempool` — Live mempool dashboard with fee histogram and recent transactions (requires ZMQ for sub-second invalidation)
 - `/address/:address` — Address summary (received/sent/balance), UTXOs, and paginated transaction history (requires address explorer feature flag)
@@ -111,7 +111,7 @@ ADDRESS_XPUB_GAP_LIMIT=20
 ### JSON API
 - `/api/v1/tip` — Chain tip summary (JSON payload mirroring the home page data)
 - `/api/v1/block/:id` — Block metadata + paginated txids (`page` query supported)
-- `/api/v1/tx/:txid` — Transaction details including computed totals and RBF hint
+- `/api/v1/tx/:txid` — Transaction details including resolved addresses, computed totals, and RBF hint
 - `/api/v1/mempool` — Mempool snapshot (histogram + recent transactions, `page` query supported)
 - `/api/v1/address/:address` — Address summary, UTXOs, and transactions (`page`/`pageSize` query supported)
 - `/api/v1/xpub/:xpub` — Xpub-derived address summary and balances (limited by `ADDRESS_XPUB_GAP_LIMIT`)

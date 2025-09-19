@@ -62,7 +62,7 @@ Keep this document updated as new features land or testing strategy evolves.
 ## 6. API Smoke Checklist
 1. Hit the tip endpoint: `curl http://<HOST>:<PORT>/api/v1/tip` and confirm `height`, `bestHash`, and fee estimates mirror the home page.
 2. Use the returned `bestHash` (or height) to fetch block metadata: `curl http://<HOST>:<PORT>/api/v1/block/<block-id>` and verify `hash`, `height`, and pagination reflect the HTML `/block/<id>` view.
-3. Retrieve a known transaction with `curl http://<HOST>:<PORT>/api/v1/tx/<txid>` and ensure totals (`inputValue`, `outputValue`, `fee`, `isRbf`) align with the `/tx/<txid>` page.
+3. Retrieve a known transaction with `curl http://<HOST>:<PORT>/api/v1/tx/<txid>` and ensure totals (`inputValue`, `outputValue`, `fee`, `isRbf`) and resolved addresses align with the `/tx/<txid>` page.
 4. If the mempool dashboard is enabled, run `curl http://<HOST>:<PORT>/api/v1/mempool` to spot the recent transaction list; compare it against the `/mempool` table during mempool growth and after confirmations.
 5. Repeat the sequence after mining/broadcasting on regtest to watch the API reflect new state without restarting the server.
 

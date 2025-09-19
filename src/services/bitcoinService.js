@@ -39,6 +39,20 @@ function resolveVinValue(vin) {
   return 0;
 }
 
+function extractAddresses(scriptPubKey) {
+  if (!scriptPubKey) {
+    return [];
+  }
+  const { addresses, address } = scriptPubKey;
+  if (Array.isArray(addresses) && addresses.length > 0) {
+    return addresses.filter((entry) => typeof entry === 'string' && entry.length > 0);
+  }
+  if (typeof address === 'string' && address.length > 0) {
+    return [address];
+  }
+  return [];
+}
+
 function toNumber(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -137,10 +151,19 @@ export async function getTransactionData(txid) {
     throw new NotFoundError('Transaction not found');
   }
 
-  const inputValue = (tx.vin || []).reduce((acc, vin) => acc + resolveVinValue(vin), 0);
-  const outputValue = (tx.vout || []).reduce((acc, vout) => acc + (typeof vout.value === 'number' ? vout.value : 0), 0);
+  const vin = (tx.vin || []).map((input) => ({
+    ...input,
+    addresses: extractAddresses(input?.prevout?.scriptPubKey)
+  }));
+  const vout = (tx.vout || []).map((output) => ({
+    ...output,
+    addresses: extractAddresses(output?.scriptPubKey)
+  }));
+
+  const inputValue = vin.reduce((acc, input) => acc + resolveVinValue(input), 0);
+  const outputValue = vout.reduce((acc, output) => acc + (typeof output.value === 'number' ? output.value : 0), 0);
   const fee = inputValue > 0 ? inputValue - outputValue : null;
-  const isRbf = (tx.vin || []).some((vin) => typeof vin.sequence === 'number' && vin.sequence < 0xfffffffe);
+  const isRbf = vin.some((input) => typeof input.sequence === 'number' && input.sequence < 0xfffffffe);
 
   return {
     txid: tx.txid,
@@ -148,8 +171,8 @@ export async function getTransactionData(txid) {
     size: tx.size,
     weight: tx.weight,
     locktime: tx.locktime,
-    vin: tx.vin,
-    vout: tx.vout,
+    vin,
+    vout,
     inputValue,
     outputValue,
     fee,

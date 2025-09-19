@@ -88,11 +88,11 @@ describe('server routes', () => {
       weight: 1000,
       locktime: 0,
       vin: [
-        { txid: 'prev', vout: 0, value: 1.2, sequence: 0xfffffffd }
+        { txid: 'prev', vout: 0, value: 1.2, sequence: 0xfffffffd, addresses: ['input-addr'] }
       ],
       vout: [
-        { n: 0, value: 0.8, scriptPubKey: { addresses: ['addr1'] } },
-        { n: 1, value: 0.3999, scriptPubKey: { type: 'nulldata' } }
+        { n: 0, value: 0.8, addresses: ['addr1'], scriptPubKey: { addresses: ['addr1'], type: 'witness_v0_keyhash' } },
+        { n: 1, value: 0.3999, addresses: [], scriptPubKey: { type: 'nulldata' } }
       ],
       inputValue: 1.2,
       outputValue: 1.1999,
@@ -107,6 +107,8 @@ describe('server routes', () => {
     expect(serviceMocks.getTransactionData).toHaveBeenCalledWith('tx-1');
     expect(response.text).toContain('<strong>TxID:</strong> <code>tx-1</code>');
     expect(response.text).toContain('<span class="tag">Fee</span> 0.0001');
+    expect(response.text).toContain('Address');
+    expect(response.text).toContain('input-addr');
   });
 
   it('redirects search results to the resolved resource', async () => {

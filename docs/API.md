@@ -92,7 +92,7 @@ curl "http://localhost:28765/api/v1/block/800000?page=2"
 ```
 
 ### GET `/api/v1/tx/:txid`
-Returns full transaction details including aggregated value totals and RBF hint.
+Returns full transaction details including resolved input/output addresses, aggregated value totals, and the RBF hint.
 
 **Sample request:**
 ```bash
@@ -108,8 +108,38 @@ curl http://localhost:28765/api/v1/tx/aef1...c0
     "size": 210,
     "weight": 840,
     "locktime": 0,
-    "vin": [...],
-    "vout": [...],
+    "vin": [
+      {
+        "txid": "9f7c...cd",
+        "vout": 0,
+        "sequence": 4294967293,
+        "addresses": ["bc1qexampleinput"],
+        "prevout": {
+          "value": 1.20000000,
+          "scriptPubKey": {
+            "type": "witness_v0_keyhash"
+          }
+        }
+      }
+    ],
+    "vout": [
+      {
+        "n": 0,
+        "value": 0.80000000,
+        "addresses": ["bc1qexampleoutput"],
+        "scriptPubKey": {
+          "type": "witness_v0_keyhash"
+        }
+      },
+      {
+        "n": 1,
+        "value": 0.39990000,
+        "addresses": [],
+        "scriptPubKey": {
+          "type": "nulldata"
+        }
+      }
+    ],
     "inputValue": 1.5000,
     "outputValue": 1.4990,
     "fee": 0.0010,

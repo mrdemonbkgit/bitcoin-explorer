@@ -34,6 +34,8 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
 
 ## 2025-09-20
 ### Done
+- feat(tx): surface resolved addresses on transaction view & API — (Pending)
+  - Context: `src/services/bitcoinService.js`, `views/tx.njk`, tests, and docs (`README.md`, `docs/API.md`, `docs/TESTING.md`, `docs/PRD.md`, `docs/design/api-ssr-plan.md`).
 - feat(metrics): add Prometheus exporter with instrumentation — (Commit 0ee2879)
   - Context: `docs/design/metrics-exporter.md` Task Tracker completed; updated README/RUNBOOK/TESTING for env flags and smoke steps.
 - feat(websocket): deliver LAN WebSocket notifications + client hydration — (Commit d594bfd)
