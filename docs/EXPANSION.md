@@ -45,8 +45,8 @@ This document captures ambitious growth directions for the explorer so we can pl
 - **Accessibility**: ensure responsive layouts, keyboard navigation, and color-safe palettes as complexity grows.
 
 ## Milestone Sketch
-- **Near-Term (Quarter 1)**: ZMQ cache busting, mempool dashboard, structured logging, CI smoke tests with regtest.
-- **Mid-Term (Quarter 2)**: Address/xpub explorer with local index, API surface, WebSocket notifications, metrics exporter.
+- **Near-Term (Quarter 1)** ✅ Completed — ZMQ cache busting, mempool dashboard, structured logging, and CI smoke tests are live.
+- **Mid-Term (Quarter 2)** ▶ In progress — API surface (see `docs/design/api-ssr-plan.md`), address/xpub explorer with local index, WebSocket notifications, metrics exporter.
 - **Long-Term (Quarter 3+)**: pluggable modules, analytics warehouse, multi-node awareness, optional authZ/authN stack.
 
 ### Near-Term Bundle Implementation Plan
