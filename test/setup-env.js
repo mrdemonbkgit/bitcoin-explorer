@@ -14,3 +14,6 @@ process.env.FEATURE_MEMPOOL_DASHBOARD = process.env.FEATURE_MEMPOOL_DASHBOARD ??
 process.env.METRICS_ENABLED = process.env.METRICS_ENABLED ?? 'false';
 process.env.METRICS_PATH = process.env.METRICS_PATH ?? '/metrics';
 process.env.METRICS_INCLUDE_DEFAULT = process.env.METRICS_INCLUDE_DEFAULT ?? 'false';
+process.env.WEBSOCKET_ENABLED = process.env.WEBSOCKET_ENABLED ?? 'false';
+process.env.WEBSOCKET_PATH = process.env.WEBSOCKET_PATH ?? '/ws';
+process.env.WEBSOCKET_PORT = process.env.WEBSOCKET_PORT ?? '';

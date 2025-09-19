@@ -37,7 +37,7 @@ describe('server routes', () => {
     const response = await request(app).get('/');
 
     expect(response.status).toBe(200);
-    expect(response.text).toContain('<strong>Chain:</strong> MAIN');
+    expect(response.text).toContain('<span id="tip-chain">MAIN</span>');
     expect(serviceMocks.getTipData).toHaveBeenCalledTimes(1);
   });
 

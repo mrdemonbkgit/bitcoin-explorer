@@ -1,20 +1,20 @@
 # WebSocket Notifications — Design & Implementation Plan
 
 ## Task Tracker
-- [ ] Development — (Dev)
-  - [ ] Add configuration flags (`WEBSOCKET_ENABLED`, `WEBSOCKET_PATH`, `WEBSOCKET_PORT`) with zod validation and sensible defaults.
-  - [ ] Introduce a WebSocket gateway that subscribes to cache/ZMQ events and pushes tip, block, tx, and mempool updates to connected clients.
-  - [ ] Update Nunjucks views (home, mempool) with optional client-side hydration to consume WebSocket payloads without breaking SSR.
-  - [ ] Integrate metrics/logging for WS connections, broadcasts, and errors.
-- [ ] Quality Assurance — (QA)
-  - [ ] Extend unit/integration tests covering gateway behaviour, disabled mode (404/upgrade rejection), and client payload shape.
-  - [ ] Add optional regtest smoke toggle (`REGTEST_WS_CHECK=true`) to validate realtime updates end-to-end.
-- [ ] DevOps — (DevOps)
-  - [ ] Document deployment guidance (LAN-only binding, reverse proxy considerations) in RUNBOOK and sample Prometheus metrics additions (if scraped).
-  - [ ] Ensure CI runs `npm run lint`, `npm run typecheck`, and WS-specific tests and keep coverage thresholds green.
-- [ ] Documentation — (Docs)
-  - [ ] Update README/TESTING with WebSocket enablement instructions and fallback behaviour.
-  - [ ] Announce the feature in CHANGELOG once merged.
+- [x] Development — (Dev)
+  - [x] Add configuration flags (`WEBSOCKET_ENABLED`, `WEBSOCKET_PATH`, `WEBSOCKET_PORT`) with zod validation and sensible defaults.
+  - [x] Introduce a WebSocket gateway that subscribes to cache/ZMQ events and pushes tip, block, tx, and mempool updates to connected clients.
+  - [x] Update Nunjucks views (home, mempool) with optional client-side hydration to consume WebSocket payloads without breaking SSR.
+  - [x] Integrate metrics/logging for WS connections, broadcasts, and errors.
+- [x] Quality Assurance — (QA)
+  - [x] Extend unit/integration tests covering gateway behaviour, disabled mode (404/upgrade rejection), and client payload shape.
+  - [x] Add optional regtest smoke toggle (`REGTEST_WS_CHECK=true`) to validate realtime updates end-to-end.
+- [x] DevOps — (DevOps)
+  - [x] Document deployment guidance (LAN-only binding, reverse proxy considerations) in RUNBOOK and sample Prometheus metrics additions (if scraped).
+  - [x] Ensure CI runs `npm run lint`, `npm run typecheck`, and WS-specific tests and keep coverage thresholds green.
+- [x] Documentation — (Docs)
+  - [x] Update README/TESTING with WebSocket enablement instructions and fallback behaviour.
+  - [x] Announce the feature in CHANGELOG once merged.
 
 ## Overview
 We will add an optional WebSocket channel that pushes near-real-time updates (tip height/hash, new transactions, mempool changes) to LAN clients. The channel piggybacks on existing ZMQ cache invalidation so connected browsers receive updates instantly, while SSR pages remain functional without WebSocket support.

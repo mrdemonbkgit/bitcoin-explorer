@@ -1,14 +1,15 @@
 {% extends "layout.njk" %}
 
 {% block title %}Mempool · Slim Bitcoin Explorer{% endblock %}
+{% block page_id %}mempool{% endblock %}
 
 {% block content %}
   <div class="card">
     <h2>Mempool Overview</h2>
-    <p><strong>Transactions:</strong> {{ mempool.snapshot.txCount | default('n/a') }}</p>
-    <p><strong>Virtual Size:</strong> {{ mempool.snapshot.virtualSize | default('n/a') }}</p>
-    <p><strong>Median Fee Rate (sat/vB):</strong> {{ mempool.snapshot.medianFee | default('n/a') }}</p>
-    <p class="muted">Last updated: {{ mempool.snapshot.updatedAt | default('n/a') }}</p>
+    <p><strong>Transactions:</strong> <span id="mempool-tx-count">{{ mempool.snapshot.txCount | default('n/a') }}</span></p>
+    <p><strong>Virtual Size:</strong> <span id="mempool-virtual-size">{{ mempool.snapshot.virtualSize | default('n/a') }}</span></p>
+    <p><strong>Median Fee Rate (sat/vB):</strong> <span id="mempool-median-fee">{{ mempool.snapshot.medianFee | default('n/a') }}</span></p>
+    <p class="muted">Last updated: <span id="mempool-updated-at">{{ mempool.snapshot.updatedAt | default('n/a') }}</span></p>
   </div>
 
   <div class="card">
@@ -21,7 +22,7 @@
           <th>Virtual Size</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody data-role="mempool-histogram">
         {% for bucket in mempool.snapshot.histogram %}
           <tr>
             <td>{{ bucket.range }}</td>
@@ -49,7 +50,7 @@
           <th>RBF</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody data-role="mempool-recent">
         {% for tx in mempool.snapshot.recent %}
           <tr>
             <td><a href="/tx/{{ tx.txid }}"><code>{{ tx.txid }}</code></a></td>
@@ -69,7 +70,7 @@
       {% if mempool.pagination.page > 1 %}
         <a href="?page={{ mempool.pagination.page - 1 }}">Previous</a>
       {% endif %}
-      <span>Page {{ mempool.pagination.page }} / {{ mempool.pagination.totalPages }}</span>
+      <span id="mempool-pagination">Page {{ mempool.pagination.page }} / {{ mempool.pagination.totalPages }}</span>
       {% if mempool.pagination.page < mempool.pagination.totalPages %}
         <a href="?page={{ mempool.pagination.page + 1 }}">Next</a>
       {% endif %}

@@ -27,7 +27,7 @@
     nav.nav a { font-weight: 600; }
   </style>
 </head>
-<body>
+<body data-page="{% block page_id %}{% endblock %}" data-ws-enabled="{{ websocket.enabled and 'true' or 'false' }}" data-ws-path="{{ websocket.path }}"{% if websocket.port %} data-ws-port="{{ websocket.port }}"{% endif %}>
   <header>
     <h1><a href="/">Slim Bitcoin Explorer</a></h1>
     <p class="muted">Self-hosted, LAN-only explorer backed by Bitcoin Core JSON-RPC.</p>
@@ -41,5 +41,260 @@
   <main>
     {% block content %}{% endblock %}
   </main>
+  {% block scripts %}{% endblock %}
+  {% if websocket.enabled %}
+    <script>
+      (function () {
+        const body = document.body;
+        if (!body) {
+          return;
+        }
+
+        if (body.dataset.wsEnabled !== 'true' || typeof WebSocket === 'undefined') {
+          return;
+        }
+
+        const path = body.dataset.wsPath || '/ws';
+        const overridePort = body.dataset.wsPort;
+        const reconnectDelay = 5000;
+        const maxQueue = 3;
+        const pageId = body.dataset.page || '';
+        let socket;
+        let reconnectTimer;
+        let pendingTipRefresh = false;
+        let pendingMempoolRefresh = false;
+
+        const numberFormatter = new Intl.NumberFormat();
+
+        function buildUrl() {
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const host = overridePort ? `${window.location.hostname}:${overridePort}` : window.location.host;
+          return `${protocol}//${host}${path}`;
+        }
+
+        function scheduleReconnect() {
+          if (reconnectTimer) {
+            return;
+          }
+          reconnectTimer = window.setTimeout(() => {
+            reconnectTimer = undefined;
+            connect();
+          }, reconnectDelay);
+        }
+
+        async function refreshTip() {
+          if (pendingTipRefresh) {
+            return;
+          }
+          pendingTipRefresh = true;
+          try {
+            const response = await fetch('/api/v1/tip', { cache: 'no-store' });
+            if (!response.ok) {
+              return;
+            }
+            const payload = await response.json();
+            const data = payload?.data;
+            if (!data) {
+              return;
+            }
+            const chainEl = document.getElementById('tip-chain');
+            if (chainEl) {
+              chainEl.textContent = (data.chain || '').toUpperCase();
+            }
+            const heightEl = document.getElementById('tip-height');
+            if (heightEl) {
+              heightEl.textContent = numberFormatter.format(data.height ?? 0);
+            }
+            const hashEl = document.getElementById('tip-hash');
+            if (hashEl) {
+              hashEl.textContent = data.bestHash ?? '';
+            }
+            const txCountEl = document.getElementById('tip-mempool-txcount');
+            if (txCountEl && data.mempool) {
+              txCountEl.textContent = numberFormatter.format(data.mempool.txCount ?? 0);
+            }
+            const bytesEl = document.getElementById('tip-mempool-bytes');
+            if (bytesEl && data.mempool) {
+              bytesEl.textContent = numberFormatter.format(data.mempool.bytes ?? 0);
+            }
+            const feeTargets = data.feeEstimates || {};
+            const fee1 = document.getElementById('tip-fee-1');
+            if (fee1) {
+              fee1.textContent = feeTargets['1'] ?? 'n/a';
+            }
+            const fee3 = document.getElementById('tip-fee-3');
+            if (fee3) {
+              fee3.textContent = feeTargets['3'] ?? 'n/a';
+            }
+            const fee6 = document.getElementById('tip-fee-6');
+            if (fee6) {
+              fee6.textContent = feeTargets['6'] ?? 'n/a';
+            }
+          } catch (error) {
+            console.debug('tip refresh failed', error);
+          } finally {
+            pendingTipRefresh = false;
+          }
+        }
+
+        function renderTableBody(tbody, rowsHtml) {
+          if (!tbody) {
+            return;
+          }
+          tbody.innerHTML = rowsHtml;
+        }
+
+        async function refreshMempool() {
+          if (pendingMempoolRefresh || pageId !== 'mempool') {
+            return;
+          }
+          pendingMempoolRefresh = true;
+          try {
+            const search = window.location.search || '';
+            const response = await fetch(`/api/v1/mempool${search}`, { cache: 'no-store' });
+            if (!response.ok) {
+              return;
+            }
+            const payload = await response.json();
+            const data = payload?.data;
+            if (!data) {
+              return;
+            }
+            const txCountEl = document.getElementById('mempool-tx-count');
+            if (txCountEl) {
+              txCountEl.textContent = numberFormatter.format(data.txCount ?? 0);
+            }
+            const vSizeEl = document.getElementById('mempool-virtual-size');
+            if (vSizeEl) {
+              vSizeEl.textContent = numberFormatter.format(data.virtualSize ?? 0);
+            }
+            const medianFeeEl = document.getElementById('mempool-median-fee');
+            if (medianFeeEl) {
+              medianFeeEl.textContent = data.medianFee != null ? data.medianFee.toFixed(2) : 'n/a';
+            }
+            const updatedAtEl = document.getElementById('mempool-updated-at');
+            if (updatedAtEl) {
+              updatedAtEl.textContent = data.updatedAt ?? 'n/a';
+            }
+
+            const histogramBody = document.querySelector('[data-role="mempool-histogram"]');
+            if (histogramBody) {
+              if (Array.isArray(data.histogram) && data.histogram.length > 0) {
+                const rows = data.histogram
+                  .map((bucket) => `<tr><td>${bucket.range}</td><td>${numberFormatter.format(bucket.count)}</td><td>${numberFormatter.format(bucket.vsize)}</td></tr>`)
+                  .join('');
+                renderTableBody(histogramBody, rows);
+              } else {
+                renderTableBody(histogramBody, '<tr><td colspan="3" class="muted">No histogram data available.</td></tr>');
+              }
+            }
+
+            const recentBody = document.querySelector('[data-role="mempool-recent"]');
+            if (recentBody) {
+              if (Array.isArray(data.recent) && data.recent.length > 0) {
+                const rows = data.recent
+                  .map((tx) => `
+                    <tr>
+                      <td><a href="/tx/${tx.txid}"><code>${tx.txid}</code></a></td>
+                      <td>${tx.feerate != null ? tx.feerate.toFixed(2) : 'n/a'}</td>
+                      <td>${numberFormatter.format(tx.vsize ?? 0)}</td>
+                      <td>${tx.ageSeconds != null ? numberFormatter.format(tx.ageSeconds) : 'n/a'}</td>
+                      <td>${tx.isRbf ? 'Yes' : 'No'}</td>
+                    </tr>
+                  `)
+                  .join('');
+                renderTableBody(recentBody, rows);
+              } else {
+                renderTableBody(recentBody, '<tr><td colspan="5" class="muted">No transactions currently tracked.</td></tr>');
+              }
+            }
+
+            const paginationSpan = document.getElementById('mempool-pagination');
+            const pagination = payload?.meta?.pagination;
+            if (paginationSpan && pagination) {
+              paginationSpan.textContent = `Page ${pagination.page} / ${pagination.totalPages}`;
+            }
+          } catch (error) {
+            console.debug('mempool refresh failed', error);
+          } finally {
+            pendingMempoolRefresh = false;
+          }
+        }
+
+        const taskQueue = [];
+
+        function enqueueRefresh(callback) {
+          taskQueue.push(callback);
+          if (taskQueue.length > maxQueue) {
+            taskQueue.shift();
+          }
+          if (taskQueue.length === 1) {
+            runQueue();
+          }
+        }
+
+        async function runQueue() {
+          if (taskQueue.length === 0) {
+            return;
+          }
+          const task = taskQueue[0];
+          try {
+            await task();
+          } finally {
+            taskQueue.shift();
+            if (taskQueue.length > 0) {
+              window.requestAnimationFrame(runQueue);
+            }
+          }
+        }
+
+        function handleMessage(event) {
+          try {
+            const payload = JSON.parse(event.data);
+            switch (payload.type) {
+              case 'block.new':
+              case 'tip.update':
+                enqueueRefresh(refreshTip);
+                break;
+              case 'tx.new':
+              case 'mempool.invalidate':
+                if (pageId === 'mempool') {
+                  enqueueRefresh(refreshMempool);
+                }
+                break;
+              default:
+                break;
+            }
+          } catch (error) {
+            console.debug('Invalid WebSocket payload', error);
+          }
+        }
+
+        function connect() {
+          try {
+            socket = new WebSocket(buildUrl());
+          } catch (error) {
+            console.debug('WebSocket connect error', error);
+            scheduleReconnect();
+            return;
+          }
+
+          socket.addEventListener('open', () => {
+            if (reconnectTimer) {
+              window.clearTimeout(reconnectTimer);
+              reconnectTimer = undefined;
+            }
+          });
+          socket.addEventListener('message', handleMessage);
+          socket.addEventListener('close', scheduleReconnect);
+          socket.addEventListener('error', () => {
+            scheduleReconnect();
+          });
+        }
+
+        connect();
+      })();
+    </script>
+  {% endif %}
 </body>
 </html>

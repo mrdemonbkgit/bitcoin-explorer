@@ -18,6 +18,18 @@ const BooleanStringSchema = z.string().transform((value, ctx) => {
 
 const BooleanSchema = z.union([z.boolean(), BooleanStringSchema]);
 
+const OptionalPortSchema = z.any().transform((value, ctx) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'WebSocket port must be a positive integer' });
+    return z.NEVER;
+  }
+  return parsed;
+});
+
 const ConfigSchema = z.object({
   BITCOIN_RPC_URL: z.string().url(),
   BITCOIN_RPC_COOKIE: z.string().min(1).optional(),
@@ -37,7 +49,10 @@ const ConfigSchema = z.object({
   FEATURE_MEMPOOL_DASHBOARD: BooleanSchema.default(true),
   METRICS_ENABLED: BooleanSchema.default(false),
   METRICS_PATH: z.string().regex(/^\//, 'Metrics path must start with /').default('/metrics'),
-  METRICS_INCLUDE_DEFAULT: BooleanSchema.default(false)
+  METRICS_INCLUDE_DEFAULT: BooleanSchema.default(false),
+  WEBSOCKET_ENABLED: BooleanSchema.default(false),
+  WEBSOCKET_PATH: z.string().regex(/^\//, 'WebSocket path must start with /').default('/ws'),
+  WEBSOCKET_PORT: OptionalPortSchema
 }).superRefine((data, ctx) => {
   const hasCookie = Boolean(data.BITCOIN_RPC_COOKIE);
   const hasUserPass = Boolean(data.BITCOIN_RPC_USER && data.BITCOIN_RPC_PASSWORD);
@@ -78,11 +93,17 @@ export const config = Object.freeze({
     pretty: cfg.LOG_PRETTY
   },
   features: {
-    mempoolDashboard: cfg.FEATURE_MEMPOOL_DASHBOARD
+    mempoolDashboard: cfg.FEATURE_MEMPOOL_DASHBOARD,
+    websocket: cfg.WEBSOCKET_ENABLED
   },
   metrics: {
     enabled: cfg.METRICS_ENABLED,
     path: cfg.METRICS_PATH,
     includeDefault: cfg.METRICS_INCLUDE_DEFAULT
+  },
+  websocket: {
+    enabled: cfg.WEBSOCKET_ENABLED,
+    path: cfg.WEBSOCKET_PATH,
+    port: cfg.WEBSOCKET_PORT
   }
 });

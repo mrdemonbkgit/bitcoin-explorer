@@ -65,14 +65,18 @@ BITCOIN_RPC_TIMEOUT=3000
 METRICS_ENABLED=false
 METRICS_PATH=/metrics
 METRICS_INCLUDE_DEFAULT=false
+WEBSOCKET_ENABLED=false
+WEBSOCKET_PATH=/ws
+WEBSOCKET_PORT=
 ```
 
-### Realtime Updates, Logging & Metrics
+### Realtime Updates, Logging, Metrics & WebSockets
 - Set `BITCOIN_ZMQ_BLOCK` / `BITCOIN_ZMQ_TX` to enable sub-second cache busting via Bitcoin Core's ZMQ notifications (e.g., `tcp://127.0.0.1:28332`). Without these values the explorer falls back to TTL-based polling.
 - Tune cache behaviour with `CACHE_TTL_MEMPOOL` alongside existing tip/block/tx TTLs.
 - Structured logs emit JSON via `pino`; adjust `LOG_LEVEL` (`trace`→`fatal`) and toggle pretty printing with `LOG_PRETTY=true` during local development.
 - Toggle the mempool dashboard entirely via `FEATURE_MEMPOOL_DASHBOARD=false` if operators prefer to disable the route.
 - Enable the Prometheus exporter with `METRICS_ENABLED=true`. The endpoint defaults to `/metrics` on the main bind; adjust via `METRICS_PATH`. Set `METRICS_INCLUDE_DEFAULT=true` to expose Node.js process metrics.
+- Enable LAN-only WebSocket pushes with `WEBSOCKET_ENABLED=true`. Clients use the configured `WEBSOCKET_PATH` (default `/ws`) and reuse the main server port unless `WEBSOCKET_PORT` is set. When active, the home and mempool pages hydrate with near-real-time updates while remaining fully functional without WebSockets.
 
 ## Available Routes
 - `/` — Home dashboard with chain tip, mempool status, fee estimates, and search box

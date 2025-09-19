@@ -15,7 +15,9 @@ function createDisabledMetrics(path) {
     observeHttpRequest: NOOP,
     observeRpcRequest: NOOP,
     recordCacheEvent: NOOP,
-    recordZmqEvent: NOOP
+    recordZmqEvent: NOOP,
+    recordWebsocketConnection: NOOP,
+    recordWebsocketMessage: NOOP
   };
 }
 
@@ -96,6 +98,20 @@ function createEnabledMetrics({ path, includeDefault }) {
     registers: [registry]
   });
 
+  const websocketConnectionsTotal = new Counter({
+    name: 'explorer_websocket_connections_total',
+    help: 'WebSocket connection events grouped by outcome',
+    labelNames: ['event'],
+    registers: [registry]
+  });
+
+  const websocketMessagesTotal = new Counter({
+    name: 'explorer_websocket_messages_total',
+    help: 'WebSocket messages broadcast grouped by type and status',
+    labelNames: ['type', 'event'],
+    registers: [registry]
+  });
+
   async function handler(_req, res, next) {
     try {
       res.setHeader('Content-Type', registry.contentType);
@@ -134,6 +150,15 @@ function createEnabledMetrics({ path, includeDefault }) {
         return;
       }
       zmqEventsTotal.inc({ topic, event });
+    },
+    recordWebsocketConnection({ event }) {
+      if (!event) {
+        return;
+      }
+      websocketConnectionsTotal.inc({ event });
+    },
+    recordWebsocketMessage({ type, event }) {
+      websocketMessagesTotal.inc({ type: type ?? 'unknown', event: event ?? 'broadcast' });
     }
   };
 }
@@ -150,7 +175,9 @@ export function createNoopRecorder() {
     observeHttpRequest: NOOP,
     observeRpcRequest: NOOP,
     recordCacheEvent: NOOP,
-    recordZmqEvent: NOOP
+    recordZmqEvent: NOOP,
+    recordWebsocketConnection: NOOP,
+    recordWebsocketMessage: NOOP
   };
 }
 

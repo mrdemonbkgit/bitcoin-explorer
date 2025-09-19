@@ -1,6 +1,7 @@
 {% extends "layout.njk" %}
 
 {% block title %}Home · Slim Bitcoin Explorer{% endblock %}
+{% block page_id %}home{% endblock %}
 
 {% block content %}
   <div class="card">
@@ -13,14 +14,14 @@
   <div class="card grid two">
     <div>
       <h2>Chain Tip</h2>
-      <p><strong>Chain:</strong> {{ summary.chain | upper }}</p>
-      <p><strong>Height:</strong> {{ summary.height }}</p>
-      <p><strong>Best Hash:</strong> <code>{{ summary.bestHash }}</code></p>
+      <p><strong>Chain:</strong> <span id="tip-chain">{{ summary.chain | upper }}</span></p>
+      <p><strong>Height:</strong> <span id="tip-height">{{ summary.height }}</span></p>
+      <p><strong>Best Hash:</strong> <code id="tip-hash">{{ summary.bestHash }}</code></p>
     </div>
     <div>
       <h2>Mempool</h2>
-      <p><strong>Transactions:</strong> {{ summary.mempool.txCount }}</p>
-      <p><strong>Bytes:</strong> {{ summary.mempool.bytes }}</p>
+      <p><strong>Transactions:</strong> <span id="tip-mempool-txcount">{{ summary.mempool.txCount }}</span></p>
+      <p><strong>Bytes:</strong> <span id="tip-mempool-bytes">{{ summary.mempool.bytes }}</span></p>
     </div>
   </div>
 
@@ -36,15 +37,15 @@
       <tbody>
         <tr>
           <td>1</td>
-          <td>{{ summary.feeEstimates['1'] or 'n/a' }}</td>
+          <td id="tip-fee-1">{{ summary.feeEstimates['1'] or 'n/a' }}</td>
         </tr>
         <tr>
           <td>3</td>
-          <td>{{ summary.feeEstimates['3'] or 'n/a' }}</td>
+          <td id="tip-fee-3">{{ summary.feeEstimates['3'] or 'n/a' }}</td>
         </tr>
         <tr>
           <td>6</td>
-          <td>{{ summary.feeEstimates['6'] or 'n/a' }}</td>
+          <td id="tip-fee-6">{{ summary.feeEstimates['6'] or 'n/a' }}</td>
         </tr>
       </tbody>
     </table>

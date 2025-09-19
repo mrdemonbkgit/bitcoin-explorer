@@ -17,6 +17,7 @@ import apiRouter from './routes/api/index.js';
 import { asyncHandler } from './utils/asyncHandler.js';
 import { getMempoolViewModel } from './services/mempoolService.js';
 import { metricsEnabled, metricsHandler } from './infra/metrics.js';
+import { startWebsocketGateway } from './infra/websocketGateway.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +34,11 @@ export function createApp() {
     next();
   });
 
+  app.use((req, res, next) => {
+    res.locals.websocket = config.websocket;
+    next();
+  });
+
   app.get(config.metrics.path, (req, res, next) => metricsHandler(req, res, next));
 
   nunjucks.configure(viewsPath, {
@@ -44,6 +50,7 @@ export function createApp() {
 
   app.set('view engine', 'njk');
   app.locals.features = config.features;
+  app.locals.websocket = config.websocket;
 
   app.get('/', asyncHandler(async (req, res) => {
     const summary = await getTipData();
@@ -162,6 +169,7 @@ function startServer() {
   const logger = getLogger();
   let stopZmqListener = async () => {};
   let zmqStartPromise = null;
+  let stopWebsocketGateway = async () => {};
 
   if (config.zmq.blockEndpoint || config.zmq.txEndpoint) {
     zmqStartPromise = startZmqListener({
@@ -205,10 +213,25 @@ function startServer() {
     }
   });
 
+  if (config.websocket.enabled) {
+    startWebsocketGateway({ httpServer: server })
+      .then((stopper) => {
+        stopWebsocketGateway = stopper ?? stopWebsocketGateway;
+        const message = config.websocket.port
+          ? `WebSocket gateway active on port ${config.websocket.port}${config.websocket.path}`
+          : `WebSocket gateway active at ${config.websocket.path}`;
+        logger.info({ context: { event: 'websocket.enabled', path: config.websocket.path, port: config.websocket.port ?? config.app.port } }, message);
+      })
+      .catch((error) => {
+        logger.error({ context: { event: 'websocket.startup.error' }, err: error }, 'Failed to start WebSocket gateway');
+      });
+  }
+
   const shutdown = async (signal) => {
     try {
       logger.info({ context: { event: 'server.shutdown', signal } }, 'server.shutdown');
       server.close();
+      await stopWebsocketGateway();
       if (!stopZmqListener && zmqStartPromise) {
         const resolved = await zmqStartPromise;
         if (typeof resolved === 'function') {

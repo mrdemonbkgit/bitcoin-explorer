@@ -77,3 +77,13 @@ Keep this document updated as new features land or testing strategy evolves.
 4. Optional: set `REGTEST_SCRAPE_METRICS=true` before `npm run test:regtest` to have the smoke suite verify the exporter during CI.
 5. When metrics are disabled, the endpoint should return HTTP 404 with `Metrics disabled` in the body.
 6. After validation, flip `METRICS_ENABLED` (and any related flags) back to `false` so production-like environments stay in their default posture unless operators explicitly enable scraping.
+
+## 8. WebSocket Notifications
+1. Enable WebSockets via `.env`:
+   ```ini
+   WEBSOCKET_ENABLED=true
+   WEBSOCKET_PATH=/ws
+   ```
+2. Start the explorer and visit `/` and `/mempool` in a modern browser; open the console to confirm a WebSocket connection is established. Mine a block or broadcast a transaction (on regtest) and observe the UI updating without a page refresh.
+3. If the WebSocket gateway is disabled, the client-side script remains inert and pages fall back to cached TTL behaviour.
+4. For automated coverage, run `REGTEST_WS_CHECK=true npm run test:regtest`; the smoke suite will open a WebSocket and assert that at least one broadcast arrives during the block/tx scenarios.

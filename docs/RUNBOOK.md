@@ -35,6 +35,7 @@ Additional environment controls:
 - `LOG_LEVEL`, `LOG_PRETTY` — structured logging verbosity and formatting.
 - `FEATURE_MEMPOOL_DASHBOARD` — disable the `/mempool` route when set to `false`.
 - `METRICS_ENABLED`, `METRICS_PATH`, `METRICS_INCLUDE_DEFAULT` — toggle the Prometheus metrics endpoint (default `/metrics` on the main bind). Leave disabled unless scraping from a trusted LAN host.
+- `WEBSOCKET_ENABLED`, `WEBSOCKET_PATH`, `WEBSOCKET_PORT` — enable LAN-only WebSocket pushes for home/mempool updates. When `WEBSOCKET_PORT` is blank the gateway shares the main HTTP server; otherwise it binds separately on the provided port.
 
 ## Deployment
 ```bash
@@ -84,6 +85,12 @@ npm run test:regtest
   ```
 - Set `METRICS_INCLUDE_DEFAULT=true` to export Node.js process metrics (heap usage, event loop lag). Default is `false` to avoid leaking host data.
 - When troubleshooting, `curl http://<host>:<port>/metrics` should return 200 with `explorer_http_requests_total`; if disabled it returns 404.
+
+## WebSocket Notifications
+- Set `WEBSOCKET_ENABLED=true` to broadcast ZMQ-driven events (block mined, tx seen) to LAN clients. Default path is `/ws`; adjust with `WEBSOCKET_PATH` or host the gateway on a separate port via `WEBSOCKET_PORT`.
+- The home dashboard and mempool page include progressive enhancement scripts that listen for notifications and refetch data through existing APIs. Browsers without WebSocket support continue to rely on TTL caching.
+- Recommended to keep the gateway behind LAN/firewall; if exposing beyond LAN, front it with an authenticated reverse proxy (out of scope for MVP).
+- Optional: when running `npm run test:regtest`, set `REGTEST_WS_CHECK=true` to verify WebSocket broadcasts end-to-end.
 
 ## Incident Response
 1. Confirm Bitcoin Core RPC availability (`bitcoin-cli getblockcount`).
