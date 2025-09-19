@@ -76,3 +76,4 @@ Keep this document updated as new features land or testing strategy evolves.
 3. Trigger traffic (home page, `/api/v1/tip`, `/mempool`) and re-run the curl to ensure counters increment.
 4. Optional: set `REGTEST_SCRAPE_METRICS=true` before `npm run test:regtest` to have the smoke suite verify the exporter during CI.
 5. When metrics are disabled, the endpoint should return HTTP 404 with `Metrics disabled` in the body.
+6. After validation, flip `METRICS_ENABLED` (and any related flags) back to `false` so production-like environments stay in their default posture unless operators explicitly enable scraping.
