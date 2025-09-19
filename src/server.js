@@ -13,15 +13,13 @@ import {
   getTransactionData,
   resolveSearchQuery
 } from './services/bitcoinService.js';
+import apiRouter from './routes/api/index.js';
+import { asyncHandler } from './utils/asyncHandler.js';
 import { getMempoolViewModel } from './services/mempoolService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const viewsPath = path.join(__dirname, '..', 'views');
-
-const asyncHandler = (handler) => (req, res, next) => {
-  Promise.resolve(handler(req, res, next)).catch(next);
-};
 
 export function createApp() {
   const app = express();
@@ -29,6 +27,10 @@ export function createApp() {
 
   app.use(express.urlencoded({ extended: false }));
   app.use(requestLogger());
+  app.use((req, _res, next) => {
+    req.isApiRequest = () => (req.path?.startsWith('/api/') || req.headers.accept?.includes('application/json'));
+    next();
+  });
 
   nunjucks.configure(viewsPath, {
     autoescape: true,
@@ -94,6 +96,8 @@ export function createApp() {
     }));
   }
 
+  app.use('/api/v1', apiRouter);
+
   app.use((req, res, next) => {
     next(new NotFoundError('Page not found'));
   });
@@ -128,6 +132,19 @@ export function createApp() {
     }
 
     res.status(status);
+
+    if (typeof req.isApiRequest === 'function' && req.isApiRequest()) {
+      res.json({
+        error: {
+          code: status,
+          type: error.name || 'Error',
+          message: error.message || 'Unexpected error'
+        },
+        meta: {}
+      });
+      return;
+    }
+
     res.render('error.njk', {
       status,
       message: error.message || 'Unexpected error'
