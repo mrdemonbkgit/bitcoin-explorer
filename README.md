@@ -115,23 +115,36 @@ ADDRESS_XPUB_GAP_LIMIT=20
 │   ├── config.js
 │   ├── errors.js
 │   ├── infra
+│   │   ├── addressIndexer.js
 │   │   ├── cacheEvents.js
 │   │   ├── logger.js
 │   │   └── zmqListener.js
 │   ├── middleware
 │   │   └── requestLogger.js
+│   ├── routes
+│   │   └── api
+│   │       ├── address.js
+│   │       ├── block.js
+│   │       ├── index.js
+│   │       ├── mempool.js
+│   │       ├── tip.js
+│   │       ├── tx.js
+│   │       └── xpub.js
 │   ├── rpc.js
 │   ├── server.js
 │   └── services
+│       ├── addressExplorerService.js
 │       ├── bitcoinService.js
 │       └── mempoolService.js
 ├── views
+│   ├── address.njk
 │   ├── block.njk
 │   ├── error.njk
 │   ├── home.njk
 │   ├── layout.njk
 │   ├── mempool.njk
-│   └── tx.njk
+│   ├── tx.njk
+│   └── xpub.njk
 ├── docs
 │   ├── env.sample
 │   ├── EXPANSION.md
@@ -143,7 +156,12 @@ ADDRESS_XPUB_GAP_LIMIT=20
 │       └── near-term-phase1.md
 └── test
     ├── integration
-    │   └── server.test.js
+    │   ├── api.address.test.js
+    │   ├── api.test.js
+    │   ├── metricsRoute.test.js
+    │   ├── parity.test.js
+    │   ├── server.test.js
+    │   └── websocket.test.js
     ├── setup-env.js
     └── unit
         ├── bitcoinService.test.js
