@@ -1,0 +1,11 @@
+{% extends "layout.njk" %}
+
+{% block title %}Error {{ status }} · Slim Bitcoin Explorer{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <h2>Error {{ status }}</h2>
+    <p>{{ message }}</p>
+    <p><a href="/">Return home</a></p>
+  </div>
+{% endblock %}

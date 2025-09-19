@@ -1,0 +1,52 @@
+{% extends "layout.njk" %}
+
+{% block title %}Home · Slim Bitcoin Explorer{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <form class="search" action="/search" method="get">
+      <input type="text" name="q" placeholder="Block height, hash, or transaction id" required>
+      <button type="submit">Search</button>
+    </form>
+  </div>
+
+  <div class="card grid two">
+    <div>
+      <h2>Chain Tip</h2>
+      <p><strong>Chain:</strong> {{ summary.chain | upper }}</p>
+      <p><strong>Height:</strong> {{ summary.height }}</p>
+      <p><strong>Best Hash:</strong> <code>{{ summary.bestHash }}</code></p>
+    </div>
+    <div>
+      <h2>Mempool</h2>
+      <p><strong>Transactions:</strong> {{ summary.mempool.txCount }}</p>
+      <p><strong>Bytes:</strong> {{ summary.mempool.bytes }}</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Fee Estimates (estimatesmartfee)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Target (blocks)</th>
+          <th>Fee (BTC/kvB)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>{{ summary.feeEstimates['1'] or 'n/a' }}</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>{{ summary.feeEstimates['3'] or 'n/a' }}</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>{{ summary.feeEstimates['6'] or 'n/a' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

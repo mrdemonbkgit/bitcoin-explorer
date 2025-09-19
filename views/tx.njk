@@ -1,0 +1,98 @@
+{% extends "layout.njk" %}
+
+{% block title %}Transaction {{ tx.txid }} · Slim Bitcoin Explorer{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <h2>Transaction</h2>
+    <p><strong>TxID:</strong> <code>{{ tx.txid }}</code></p>
+    <p><strong>Hash:</strong> <code>{{ tx.hash }}</code></p>
+    <div class="grid two">
+      <div>
+        <p><span class="tag">Size</span> {{ tx.size }} bytes</p>
+        <p><span class="tag">Weight</span> {{ tx.weight }}</p>
+      </div>
+      <div>
+        <p><span class="tag">Locktime</span> {{ tx.locktime }}</p>
+        <p><span class="tag">RBF</span> {{ 'Yes' if tx.isRbf else 'No' }}</p>
+      </div>
+    </div>
+    <p><span class="tag">Input Value</span> {{ tx.inputValue }}</p>
+    <p><span class="tag">Output Value</span> {{ tx.outputValue }}</p>
+    <p><span class="tag">Fee</span> {{ tx.fee if tx.fee is not none else 'Coinbase / n/a' }}</p>
+  </div>
+
+  <div class="card">
+    <h3>Inputs</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Source</th>
+          <th>Value</th>
+          <th>Sequence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for vin in tx.vin %}
+          <tr>
+            <td>{{ loop.index0 }}</td>
+            {% if vin.coinbase %}
+              <td>Coinbase</td>
+            {% else %}
+              <td><code>{{ vin.txid }}</code>:{{ vin.vout }}</td>
+            {% endif %}
+            {% if vin.coinbase %}
+              <td>n/a</td>
+            {% elif vin.value is defined %}
+              <td>{{ vin.value }}</td>
+            {% elif vin.prevout is defined and vin.prevout.value is defined %}
+              <td>{{ vin.prevout.value }}</td>
+            {% else %}
+              <td>n/a</td>
+            {% endif %}
+            <td>{{ vin.sequence }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="4" class="muted">No inputs</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Outputs</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Value (BTC)</th>
+          <th>ScriptPubKey</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for vout in tx.vout %}
+          <tr>
+            <td>{{ vout.n }}</td>
+            <td>{{ vout.value }}</td>
+            <td>
+              {% if vout.scriptPubKey.addresses %}
+                {% for addr in vout.scriptPubKey.addresses %}
+                  <code>{{ addr }}</code>{% if not loop.last %}, {% endif %}
+                {% endfor %}
+              {% else %}
+                <span class="muted">{{ vout.scriptPubKey.type }}</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="3" class="muted">No outputs</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

@@ -1,9 +1,17 @@
 # Slim Bitcoin Explorer — PRD (Basis-Only, LAN Direct Bind)
 
 ## 1) Summary
-A **local-LAN accessible**, read-only Bitcoin block explorer that runs as a single web process and talks directly to **Bitcoin Core JSON-RPC** on the same machine. No database, no background indexers, no proxy (Nginx), and no runtime resource boundaries. It binds directly to an **unusual high port** to avoid conflicts.
+A **local-LAN accessible**, read-only Bitcoin block explorer implemented with a single **Node.js web service** that talks directly to **Bitcoin Core JSON-RPC** on the same machine. No database, no background indexers, no proxy (Nginx), and no runtime resource boundaries. It binds directly to an **unusual high port** to avoid conflicts.
 
 **Primary outcome:** Fast, reliable pages for **Home**, **Block**, **Transaction**, and **Search**, with minimal system impact and simple deployment.
+
+### Tech Stack
+- Node.js 24.8 runtime (ES modules)
+- Express 5 for routing and HTTP server
+- Nunjucks templating for server-rendered HTML views
+- Axios for Bitcoin Core JSON-RPC calls
+- lru-cache for lightweight in-memory caching with TTLs
+- dotenv for environment configuration and stricter defaults via `zod`
 
 ---
 
@@ -54,8 +62,8 @@ A **local-LAN accessible**, read-only Bitcoin block explorer that runs as a sing
 ## 4) System Architecture (Direct LAN Bind)
 ```
 [ LAN Clients ]  ── HTTP :28765 ─────────▶  [ Explorer Web App ]
-                                             FastAPI + Jinja2
-                                             (0.0.0.0:28765, 1 worker)
+                                             Express + Nunjucks
+                                             (0.0.0.0:28765, single process)
 
                                              │ JSON-RPC (loopback HTTP)
                                              ▼
@@ -65,13 +73,13 @@ A **local-LAN accessible**, read-only Bitcoin block explorer that runs as a sing
 ```
 
 **Explorer Web App**
-- Single process, 1 worker, server-rendered HTML (Jinja2).
-- In-memory cache (tip 3–5s; blocks/tx 5–10m).
-- Tiny JSON-RPC client (keep‑alive session, 2–3s timeouts, pool size 2–4).
-- Read‑only operations only.
+- Single Node.js process using Express, server-rendered HTML.
+- In-memory TTL caching via `lru-cache` (tip 3–5s; blocks/tx 5–10m).
+- Axios JSON-RPC client with keep-alive agent, 2–3s timeouts, max 4 sockets.
+- Read-only operations only.
 
 **Bitcoin Core**
-- Source of truth, same box; JSON‑RPC on `127.0.0.1:8332`.
+- Source of truth, same box; JSON-RPC on `127.0.0.1:8332`.
 - Required flags in `~/.bitcoin/bitcoin.conf`:
   ```ini
   server=1
@@ -82,7 +90,7 @@ A **local-LAN accessible**, read-only Bitcoin block explorer that runs as a sing
 
 ---
 
-## 5) RPCs Used (only these)
+- `getblockchaininfo`
 - `getblockcount`
 - `getbestblockhash`
 - `getmempoolinfo`
@@ -97,15 +105,30 @@ A **local-LAN accessible**, read-only Bitcoin block explorer that runs as a sing
 **App environment (`~/bitcoin-explorer/.env`)**
 ```ini
 BITCOIN_RPC_URL=http://127.0.0.1:8332
+# Option A: cookie-based auth
 BITCOIN_RPC_COOKIE=/home/bitcoin/.bitcoin/.cookie
+# Option B: static credentials from bitcoin.conf
+BITCOIN_RPC_USER=<rpcuser>
+BITCOIN_RPC_PASSWORD=<rpcpassword>
 APP_BIND=0.0.0.0
 APP_PORT=28765   # unusual high port to avoid conflicts
+CACHE_TTL_TIP=5000        # milliseconds
+CACHE_TTL_BLOCK=600000
+CACHE_TTL_TX=600000
+BITCOIN_RPC_TIMEOUT=3000
 ```
 
 **Run the server**
 ```bash
-# from the explorer user inside the project
-uvicorn app.app:app --host $APP_BIND --port $APP_PORT --workers 1
+# install dependencies
+npm install
+
+# start in development (reload via nodemon)
+npm run dev
+
+# or run the compiled server
+npm run build
+npm start
 ```
 
 **Verify listening & access**
@@ -120,7 +143,7 @@ http://<NODE_LAN_IP>:28765/   # e.g., http://192.168.1.213:28765/
 
 ## 7) Caching (Simple & Safe)
 - Keys: `tip:besthash`, `tip:blockcount`, `block:<hash>`, `tx:<txid>`.
-- TTLs: tip 3–5s; block/tx 5–10m.
+- TTLs: tip 3–5s; block/tx 5–10m (configurable via env, defaults above).
 - On cache miss → fetch via RPC → cache → render.
 - No ZMQ invalidation (keeps dependencies zero).
 
@@ -129,7 +152,7 @@ http://<NODE_LAN_IP>:28765/   # e.g., http://192.168.1.213:28765/
 ## 8) Security Posture
 - Explorer binds to LAN on `0.0.0.0:28765`.
 - Bitcoin Core remains **localhost-only** (`127.0.0.1:8332`).
-- Cookie auth path provided via env; no hardcoded creds.
+- RPC auth set via env using cookie path or dedicated credentials; no hardcoded secrets in code.
 - No outbound calls (no analytics/fonts by default).
 
 > Note: If you later want to restrict LAN access, add firewall rules. For MVP simplicity we keep none here.
@@ -140,14 +163,15 @@ http://<NODE_LAN_IP>:28765/   # e.g., http://192.168.1.213:28765/
 - **Performance**: cache hits <150 ms; typical cold misses <800 ms.
 - **Reliability**: graceful 404/400/503; no retry storms.
 - **Footprint**: RAM well under 200 MB; CPU near idle at rest.
-- **Simplicity**: single process; no DB; no proxy; no runtime caps.
+- **Simplicity**: single Node.js process; no DB; no proxy; no runtime caps.
 
 ---
 
 ## 10) Deliverables
-- **Routes**: `/`, `/block/{id}`, `/tx/{txid}`, `/search`.
-- **RPC client**: tiny, with timeouts & error mapping.
-- **Templates**: `base.html`, `home.html`, `block.html`, `tx.html`.
+- **Routes**: `/`, `/block/{id}`, `/tx/{txid}`, `/search` via Express.
+- **RPC client**: thin Axios wrapper with timeouts & error mapping.
+- **Views**: `views/layout.njk`, `views/home.njk`, `views/block.njk`, `views/tx.njk`.
+- **Scripts**: `src/server.js` (Express app), `src/rpc.js` (JSON-RPC client), `src/cache.js`.
 - **Docs**: `README.md` (quickstart), `RUNBOOK.md` (Core flags/env).
 
 ---
@@ -163,7 +187,7 @@ http://<NODE_LAN_IP>:28765/   # e.g., http://192.168.1.213:28765/
 
 ## 12) Setup Notes / Quickstart
 1. Ensure Bitcoin Core runs with `txindex=1` and RPC on localhost.
-2. Create `.env` as above; install app deps; start uvicorn.
+2. Create `.env` as above; run `npm install` to pull dependencies; use `npm run dev` for hot reload or `npm start` for production.
 3. Browse from any LAN device to `http://<NODE_LAN_IP>:28765/`.
 4. Done. (Extend later with ZMQ, mempool page, or auth if needed.)
 

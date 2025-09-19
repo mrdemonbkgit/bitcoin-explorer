@@ -1,0 +1,38 @@
+{
+  "name": "bitcoin-explorer",
+  "version": "0.1.0",
+  "description": "Slim Bitcoin block explorer built with Node.js and Express",
+  "type": "module",
+  "engines": {
+    "node": "24.8.0"
+  },
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "build": "node scripts/build.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrdemonbkgit/bitcoin-explorer.git"
+  },
+  "keywords": [
+    "bitcoin",
+    "explorer",
+    "nodejs",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mrdemonbkgit/bitcoin-explorer/issues"
+  },
+  "homepage": "https://github.com/mrdemonbkgit/bitcoin-explorer#readme",
+  "dependencies": {
+    "axios": "^1.12.2",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "lru-cache": "^11.2.1",
+    "nunjucks": "^3.2.4",
+    "zod": "^4.1.9"
+  }
+}

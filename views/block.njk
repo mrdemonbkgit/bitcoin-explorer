@@ -1,0 +1,52 @@
+{% extends "layout.njk" %}
+
+{% block title %}Block {{ block.height }} · Slim Bitcoin Explorer{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <h2>Block {{ block.height }}</h2>
+    <p><strong>Hash:</strong> <code>{{ block.hash }}</code></p>
+    <p><strong>Timestamp:</strong> {{ block.timestamp or 'n/a' }}</p>
+    <div class="grid two">
+      <div>
+        <p><span class="tag">Size</span> {{ block.size }} bytes</p>
+        <p><span class="tag">Weight</span> {{ block.weight }}</p>
+      </div>
+      <div>
+        <p><span class="tag">Version</span> {{ block.version }}</p>
+        <p><span class="tag">Bits</span> {{ block.bits }}</p>
+      </div>
+    </div>
+    <p><span class="tag">Difficulty</span> {{ block.difficulty }}</p>
+    <p><span class="tag">Transactions</span> {{ block.txCount }}</p>
+    <p>
+      {% if block.previousblockhash %}
+        <a href="/block/{{ block.previousblockhash }}">← Previous</a>
+      {% endif %}
+      {% if block.nextblockhash %}
+        {% if block.previousblockhash %} · {% endif %}
+        <a href="/block/{{ block.nextblockhash }}">Next →</a>
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Transactions (page {{ block.page }} of {{ block.totalPages }})</h3>
+    <ol start="{{ ((block.page - 1) * block.pageSize) + 1 }}">
+      {% for txid in block.txids %}
+        <li><a href="/tx/{{ txid }}"><code>{{ txid }}</code></a></li>
+      {% else %}
+        <li class="muted">No transactions available.</li>
+      {% endfor %}
+    </ol>
+    <div class="pagination">
+      {% if block.page > 1 %}
+        <a href="?page={{ block.page - 1 }}">Previous</a>
+      {% endif %}
+      <span>Page {{ block.page }} / {{ block.totalPages }}</span>
+      {% if block.page < block.totalPages %}
+        <a href="?page={{ block.page + 1 }}">Next</a>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
