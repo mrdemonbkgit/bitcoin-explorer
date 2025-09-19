@@ -24,7 +24,20 @@ npm run dev
 
 # or start the server without file watching
 npm start
+
+# run quality gates
+npm run lint
+npm run typecheck
+npm run test
+npm run build
 ```
+
+## Quality & CI
+- `npm run lint` — ESLint baseline for Node 24 with `eslint-plugin-n`
+- `npm run typecheck` — TypeScript `--noEmit` with `checkJs` coverage
+- `npm run test` / `npm run coverage` — Vitest unit tests plus Supertest-backed integration tests
+- `npm run build` — Creates `dist/` with runtime assets and production dependencies
+- `.github/workflows/ci.yml` — GitHub Actions workflow running lint → typecheck → coverage, audits prod deps, and uploads build + coverage artifacts
 
 The service listens on the host/port defined in `.env` (`0.0.0.0:28765` by default). Bitcoin Core must be reachable at the configured RPC URL with cookie authentication enabled.
 

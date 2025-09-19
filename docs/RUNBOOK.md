@@ -40,7 +40,7 @@ npm run dev
 # start the service (production)
 npm start
 ```
-- `npm run build` is a placeholder until a dedicated build/test pipeline exists.
+- `npm run build` packages the app into `dist/` with production dependencies (ready to rsync/deploy).
 - Add a process supervisor (systemd, pm2) when moving beyond manual runs.
 
 ## Health Checks
