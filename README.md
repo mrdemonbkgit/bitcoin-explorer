@@ -1,14 +1,31 @@
 # Slim Bitcoin Explorer (Node.js)
 
-A lightweight Bitcoin block explorer that runs alongside your own Bitcoin Core node. The application is built with Node.js 24.8, Express 5, server-rendered Nunjucks views, and direct JSON-RPC calls—no databases or background indexers.
+A lightweight, LAN-first Bitcoin block explorer that runs alongside your own Bitcoin Core node. It serves server-rendered HTML with optional JSON APIs, streams live updates via WebSockets, exports Prometheus metrics, and (when enabled) maintains a local SQLite index for address/xpub lookups—all without external services.
 
 ## Stack
 - Node.js 24.8.0 (ES modules)
 - Express 5 for HTTP routing
-- Nunjucks templates for server-side rendering
+- Nunjucks for server-side rendering
 - Axios with keep-alive agents for Bitcoin Core JSON-RPC
 - lru-cache for in-memory TTL caching
+- better-sqlite3 for the optional address/xpub index
+- bitcoinjs-lib + bip32 for key/address derivation
+- ws for LAN-only WebSocket pushes
+- prom-client for the metrics exporter
+- pino for structured logging
 - dotenv + zod for strict environment configuration
+
+## Features
+- **Home dashboard** – chain tip, mempool counters, fee estimates, and global search.
+- **Blocks & transactions** – detailed block pages (height/hash) and transaction breakdowns with RBF hinting.
+- **Smart search** – accepts heights, block hashes, txids, addresses, and xpubs (routes to the appropriate view).
+- **Mempool dashboard** *(feature flagged)* – live histogram and recent transactions, refreshed via ZMQ/WebSockets when enabled.
+- **Address explorer** *(feature flagged)* – SQLite-backed balances, UTXOs, and paginated history for any address.
+- **Xpub explorer** *(feature flagged)* – derives the first `ADDRESS_XPUB_GAP_LIMIT` receive/change paths with balances and activity.
+- **JSON API** – `/api/v1/*` endpoints mirror the SSR views for automation and integrations.
+- **Prometheus metrics** *(feature flagged)* – `/metrics` exposes HTTP/RPC/cache/indexer counters and histograms.
+- **WebSocket notifications** *(feature flagged)* – LAN clients receive near-real-time tip, mempool, and tx updates powered by ZMQ.
+- **Regtest smoke suite** – `npm run test:regtest` spins up `bitcoind -regtest` to validate cache busting, mempool, address explorer, and logging end-to-end.
 
 ## Quickstart
 ```bash
