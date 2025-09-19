@@ -40,6 +40,8 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
   - Context: `src/services/addressExplorerService.js` + new unit coverage for tpub support.
 - ci: schedule nightly regtest smoke with metrics/address toggles — (Pending)
   - Context: `.github/workflows/ci.yml` now runs on cron with feature flags enabled.
+- feat(address): harden indexer checkpoints and graceful shutdown — (Pending)
+  - Context: `src/infra/addressIndexer.js` ensures atomic block commits, checkpoint reconciliation, and signal handling; docs updated (`docs/RUNBOOK.md`, `docs/design/address-explorer.md`, `docs/TESTING.md`, `README.md`, `CHANGELOG.md`).
 - feat(tx): surface resolved addresses on transaction view & API — (Pending)
   - Context: `src/services/bitcoinService.js`, `views/tx.njk`, tests, and docs (`README.md`, `docs/API.md`, `docs/TESTING.md`, `docs/PRD.md`, `docs/design/api-ssr-plan.md`).
 - feat(metrics): add Prometheus exporter with instrumentation — (Commit 0ee2879)

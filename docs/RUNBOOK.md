@@ -95,10 +95,10 @@ npm run test:regtest
 
 ## Address/Xpub Explorer
 - Enable the feature with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (default `./data/address-index.db`) using SQLite WAL mode.
-- On first start the indexer walks the chain via `getblockhash/getblock` and stores address/UTXO mappings; expect runtime proportional to chain size. Track progress via logs (`addressIndexer.sync.progress` every 100 blocks, and `addressIndexer.sync.complete` when finished).
+- On first start the indexer walks the chain via `getblockhash/getblock` and stores address/UTXO mappings; expect runtime proportional to chain size. Track progress via logs (`addressIndexer.sync.progress` every 100 blocks, and `addressIndexer.sync.complete` when finished). Checkpoints are persisted after each block, so restarts resume from the last processed height instead of starting over.
 - Subsequent updates rely on existing ZMQ notifications. If ZMQ is disabled, the indexer periodically polls new blocks during API usage.
 - Xpub views derive the first `ADDRESS_XPUB_GAP_LIMIT` addresses on both external/internal branches and aggregate balances from the index. Adjust the gap limit as needed for larger wallets.
-- Backup/restore: stop the explorer, copy the SQLite file, and restart. To rebuild from scratch, delete `ADDRESS_INDEX_PATH` and restart with the feature enabled (will rescan from height 0).
+- Backup/restore: stop the explorer, copy the SQLite file, and restart. To rebuild from scratch, delete `ADDRESS_INDEX_PATH` and restart with the feature enabled (will rescan from height 0). For a graceful shutdown during sync, send `SIGINT`/`SIGTERM` and wait for the logs to note the flush before stopping the service.
 
 ## Incident Response
 1. Confirm Bitcoin Core RPC availability (`bitcoin-cli getblockcount`).

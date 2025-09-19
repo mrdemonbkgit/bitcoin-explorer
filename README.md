@@ -53,7 +53,7 @@ npm run build
 - `npm run lint` — ESLint baseline for Node 24 with `eslint-plugin-n`
 - `npm run typecheck` — TypeScript `--noEmit` with `checkJs` coverage
 - `npm run test` / `npm run coverage` — Vitest unit tests plus Supertest-backed integration tests
-- `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary). Set `REGTEST_SCRAPE_METRICS=true` to scrape `/metrics` or `REGTEST_ADDRESS_CHECK=true` to exercise the address/xpub explorer during the run.
+- `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary). Set `REGTEST_SCRAPE_METRICS=true` to scrape `/metrics`, `REGTEST_ADDRESS_CHECK=true` to exercise the address/xpub explorer, and interrupt/restart the app mid-sync to confirm checkpoints resume cleanly.
 - `npm run build` — Creates `dist/` with runtime assets and production dependencies
 - `.github/workflows/ci.yml` — GitHub Actions workflow running lint → typecheck → coverage, audits prod deps, and uploads build + coverage artifacts
 - See `docs/TESTING.md` for a step-by-step testing checklist covering structured logging, ZMQ cache busting, the mempool dashboard, and the regtest smoke suite.
@@ -97,7 +97,7 @@ ADDRESS_XPUB_GAP_LIMIT=20
 - Toggle the mempool dashboard entirely via `FEATURE_MEMPOOL_DASHBOARD=false` if operators prefer to disable the route.
 - Enable the Prometheus exporter with `METRICS_ENABLED=true`. The endpoint defaults to `/metrics` on the main bind; adjust via `METRICS_PATH`. Set `METRICS_INCLUDE_DEFAULT=true` to expose Node.js process metrics.
 - Enable LAN-only WebSocket pushes with `WEBSOCKET_ENABLED=true`. Clients use the configured `WEBSOCKET_PATH` (default `/ws`) and reuse the main server port unless `WEBSOCKET_PORT` is set. When active, the home and mempool pages hydrate with near-real-time updates while remaining fully functional without WebSockets.
-- Enable the address/xpub explorer with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (SQLite) and uses `ADDRESS_XPUB_GAP_LIMIT` (default 20) when deriving xpub branches. Initial sync walks the chain via RPC; expect it to take time proportional to chain size.
+- Enable the address/xpub explorer with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (SQLite) and uses `ADDRESS_XPUB_GAP_LIMIT` (default 20) when deriving xpub branches. Initial sync walks the chain via RPC (checkpoints persist after restarts); expect runtime proportional to chain size.
 
 ## Available Routes
 - `/` — Home dashboard with chain tip, mempool status, fee estimates, and search box
