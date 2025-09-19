@@ -39,6 +39,7 @@ npm run build
 - `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary)
 - `npm run build` — Creates `dist/` with runtime assets and production dependencies
 - `.github/workflows/ci.yml` — GitHub Actions workflow running lint → typecheck → coverage, audits prod deps, and uploads build + coverage artifacts
+- See `docs/TESTING.md` for a step-by-step testing checklist covering structured logging, ZMQ cache busting, the mempool dashboard, and the regtest smoke suite.
 
 The service listens on the host/port defined in `.env` (`0.0.0.0:28765` by default). Bitcoin Core must be reachable at the configured RPC URL with cookie authentication enabled.
 
@@ -80,31 +81,54 @@ BITCOIN_RPC_TIMEOUT=3000
 ├── AGENTS.md
 ├── README.md
 ├── package.json
+├── scripts
+│   ├── build.js
+│   └── regtest
+│       └── smoke.js
 ├── src
 │   ├── cache.js
 │   ├── config.js
 │   ├── errors.js
+│   ├── infra
+│   │   ├── cacheEvents.js
+│   │   ├── logger.js
+│   │   └── zmqListener.js
+│   ├── middleware
+│   │   └── requestLogger.js
 │   ├── rpc.js
 │   ├── server.js
 │   └── services
-│       └── bitcoinService.js
-├── scripts
-│   └── build.js
+│       ├── bitcoinService.js
+│       └── mempoolService.js
 ├── views
 │   ├── block.njk
 │   ├── error.njk
 │   ├── home.njk
 │   ├── layout.njk
+│   ├── mempool.njk
 │   └── tx.njk
-└── docs
-    ├── PRD.md
-    ├── RUNBOOK.md
-        └── env.sample
+├── docs
+│   ├── env.sample
+│   ├── EXPANSION.md
+│   ├── PRD.md
+│   ├── RUNBOOK.md
+│   ├── TESTING.md
+│   └── design
+│       └── near-term-phase1.md
+└── test
+    ├── integration
+    │   └── server.test.js
+    ├── setup-env.js
+    └── unit
+        ├── bitcoinService.test.js
+        ├── mempoolService.test.js
+        └── requestLogger.test.js
 ```
 
 ## Notes
-- `npm run build` is a placeholder until a real build/test pipeline is defined.
-- Routes render HTML responses only; JSON APIs can be layered later if needed.
-- Caches refresh automatically on miss and expire based on the TTL values above.
+- `npm run build` now packages the app (with production dependencies) into `dist/` for deployment.
+- `/mempool` provides a live dashboard that refreshes via ZMQ when configured, falling back to TTL-based cache expiry otherwise.
+- Structured JSON logs (`pino`) capture request/RPC context; tune verbosity with `LOG_LEVEL`.
+- Routes render HTML responses; JSON APIs can still be layered on later if desired.
 
 Refer to `docs/PRD.md` for product requirements, `docs/RUNBOOK.md` for operational guidance, and `docs/EXPANSION.md` for longer-term roadmap ideas.

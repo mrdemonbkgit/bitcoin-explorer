@@ -82,5 +82,6 @@ npm run test:regtest
 - Update npm dependencies quarterly or when security advisories appear.
 - Rotate the RPC cookie if the Bitcoin Core user changes.
 - Exercise the regtest smoke suite (`npm run test:regtest`) after major upgrades to validate end-to-end behaviour.
+- Refer to `docs/TESTING.md` for a detailed manual/automated test checklist when preparing releases.
 
 Refer to `docs/PRD.md` for feature scope and `AGENTS.md` for ownership roles.
