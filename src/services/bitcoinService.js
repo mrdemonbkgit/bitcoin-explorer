@@ -8,7 +8,7 @@ const tipCache = createCache(config.cache.tip);
 const blockCache = createCache(config.cache.block);
 const txCache = createCache(config.cache.tx);
 
-const BLOCK_PAGE_SIZE = 25;
+export const BLOCK_PAGE_SIZE = 25;
 const HEX_64 = /^[0-9a-fA-F]{64}$/;
 const DIGITS = /^[0-9]+$/;
 
@@ -50,7 +50,7 @@ function normaliseFee(response) {
   return typeof response?.feerate === 'number' ? response.feerate : null;
 }
 
-export async function getTipSummary() {
+export async function getTipData() {
   return tipCache.fetch('summary', async () => {
     const [blockchainInfo, mempoolInfo, fee1, fee3, fee6] = await Promise.all([
       rpcCall('getblockchaininfo'),
@@ -93,7 +93,7 @@ async function fetchBlock(hash) {
   return blockCache.fetch(key, async () => rpcCall('getblock', [hash, 2]));
 }
 
-export async function getBlockViewModel(id, page = 1) {
+export async function getBlockData(id, page = 1) {
   const hash = await resolveBlockHash(id);
   const block = await fetchBlock(hash);
 
@@ -107,24 +107,25 @@ export async function getBlockViewModel(id, page = 1) {
   return {
     hash: block.hash,
     height: block.height,
-    time: block.time,
-    timestamp: block.time ? new Date(block.time * 1000).toISOString() : null,
+    timestamp: block.time ?? null,
     size: block.size,
     weight: block.weight,
     version: block.version,
     bits: block.bits,
     difficulty: block.difficulty,
-    previousblockhash: block.previousblockhash || null,
-    nextblockhash: block.nextblockhash || null,
+    previousBlockHash: block.previousblockhash || null,
+    nextBlockHash: block.nextblockhash || null,
     txCount: totalTransactions,
     txids,
-    page: safePage,
-    totalPages,
-    pageSize: BLOCK_PAGE_SIZE
+    pagination: {
+      page: safePage,
+      totalPages,
+      pageSize: BLOCK_PAGE_SIZE
+    }
   };
 }
 
-export async function getTransactionViewModel(txid) {
+export async function getTransactionData(txid) {
   if (!HEX_64.test(txid)) {
     throw new BadRequestError('Transaction id must be a 64-character hex string');
   }
@@ -155,6 +156,37 @@ export async function getTransactionViewModel(txid) {
   };
 }
 
+export async function getTipSummary() {
+  return getTipData();
+}
+
+export async function getBlockViewModel(id, page = 1) {
+  const data = await getBlockData(id, page);
+  return {
+    hash: data.hash,
+    height: data.height,
+    time: data.timestamp,
+    timestamp: data.timestamp ? new Date(data.timestamp * 1000).toISOString() : null,
+    size: data.size,
+    weight: data.weight,
+    version: data.version,
+    bits: data.bits,
+    difficulty: data.difficulty,
+    previousblockhash: data.previousBlockHash,
+    nextblockhash: data.nextBlockHash,
+    txCount: data.txCount,
+    txids: data.txids,
+    page: data.pagination.page,
+    totalPages: data.pagination.totalPages,
+    pageSize: data.pagination.pageSize
+  };
+}
+
+export async function getTransactionViewModel(txid) {
+  const data = await getTransactionData(txid);
+  return data;
+}
+
 export async function resolveSearchQuery(query) {
   const value = query?.trim();
   if (!value) {
@@ -180,7 +212,7 @@ export async function resolveSearchQuery(query) {
     }
   }
 
-  const tx = await getTransactionViewModel(value);
+  const tx = await getTransactionData(value);
   if (tx) {
     return { type: 'tx', id: value };
   }

@@ -8,9 +8,9 @@ import { requestLogger } from './middleware/requestLogger.js';
 import { getLogger } from './infra/logger.js';
 import { startZmqListener } from './infra/zmqListener.js';
 import {
-  getTipSummary,
-  getBlockViewModel,
-  getTransactionViewModel,
+  getTipData,
+  getBlockData,
+  getTransactionData,
   resolveSearchQuery
 } from './services/bitcoinService.js';
 import { getMempoolViewModel } from './services/mempoolService.js';
@@ -41,18 +41,37 @@ export function createApp() {
   app.locals.features = config.features;
 
   app.get('/', asyncHandler(async (req, res) => {
-    const summary = await getTipSummary();
+    const summary = await getTipData();
     res.render('home.njk', { summary });
   }));
 
   app.get('/block/:id', asyncHandler(async (req, res) => {
     const page = Number(req.query.page) || 1;
-    const block = await getBlockViewModel(req.params.id, page);
+    const blockData = await getBlockData(req.params.id, page);
+    const block = {
+      hash: blockData.hash,
+      height: blockData.height,
+      time: blockData.timestamp,
+      timestamp: blockData.timestamp ? new Date(blockData.timestamp * 1000).toISOString() : null,
+      size: blockData.size,
+      weight: blockData.weight,
+      version: blockData.version,
+      bits: blockData.bits,
+      difficulty: blockData.difficulty,
+      previousblockhash: blockData.previousBlockHash,
+      nextblockhash: blockData.nextBlockHash,
+      txCount: blockData.txCount,
+      txids: blockData.txids,
+      page: blockData.pagination.page,
+      totalPages: blockData.pagination.totalPages,
+      pageSize: blockData.pagination.pageSize
+    };
+
     res.render('block.njk', { block });
   }));
 
   app.get('/tx/:txid', asyncHandler(async (req, res) => {
-    const tx = await getTransactionViewModel(req.params.txid);
+    const tx = await getTransactionData(req.params.txid);
     res.render('tx.njk', { tx });
   }));
 

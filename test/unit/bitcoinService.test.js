@@ -8,9 +8,10 @@ vi.mock('../../src/rpc.js', () => ({
 }));
 
 import {
+  getBlockData,
   getBlockViewModel,
-  resolveSearchQuery,
-  getTipSummary
+  getTipData,
+  resolveSearchQuery
 } from '../../src/services/bitcoinService.js';
 import { emit, CacheEvents } from '../../src/infra/cacheEvents.js';
 
@@ -18,7 +19,7 @@ beforeEach(() => {
   rpcCallMock.mockReset();
 });
 
-describe('getBlockViewModel', () => {
+describe('getBlockData and getBlockViewModel', () => {
   it('normalises ids and paginates transactions', async () => {
     const blockHash = 'abc123';
     const blockTx = Array.from({ length: 30 }, (_, index) => ({ txid: `tx-${index}` }));
@@ -47,12 +48,17 @@ describe('getBlockViewModel', () => {
       throw new Error(`Unexpected RPC call: ${method}`);
     });
 
-    const result = await getBlockViewModel('123', 3);
+    const data = await getBlockData('123', 3);
+    expect(data.pagination.page).toBe(2);
+    expect(data.pagination.totalPages).toBe(2);
+    expect(data.txids).toEqual(['tx-25', 'tx-26', 'tx-27', 'tx-28', 'tx-29']);
+    expect(data.timestamp).toBe(1700000000);
 
-    expect(result.page).toBe(2);
-    expect(result.totalPages).toBe(2);
-    expect(result.txids).toEqual(['tx-25', 'tx-26', 'tx-27', 'tx-28', 'tx-29']);
-    expect(result.timestamp).toBe('2023-11-14T22:13:20.000Z');
+    const view = await getBlockViewModel('123', 3);
+    expect(view.page).toBe(2);
+    expect(view.totalPages).toBe(2);
+    expect(view.txids).toEqual(['tx-25', 'tx-26', 'tx-27', 'tx-28', 'tx-29']);
+    expect(view.timestamp).toBe('2023-11-14T22:13:20.000Z');
   });
 });
 
@@ -93,7 +99,7 @@ describe('resolveSearchQuery', () => {
   });
 });
 
-describe('getTipSummary', () => {
+describe('getTipData', () => {
   it('aggregates blockchain and mempool data and caches the result', async () => {
     rpcCallMock.mockImplementation(async (method, params) => {
       switch (method) {
@@ -108,8 +114,8 @@ describe('getTipSummary', () => {
       }
     });
 
-    const summaryFirst = await getTipSummary();
-    const summarySecond = await getTipSummary();
+    const summaryFirst = await getTipData();
+    const summarySecond = await getTipData();
 
     expect(summaryFirst).toMatchObject({
       chain: 'main',
@@ -148,8 +154,8 @@ describe('cache invalidation events', () => {
 
     emit(CacheEvents.BLOCK_NEW, { hash: 'initial-reset' });
 
-    const summaryInitial = await getTipSummary();
-    const summaryCached = await getTipSummary();
+    const summaryInitial = await getTipData();
+    const summaryCached = await getTipData();
     expect(summaryInitial.bestHash).toBe('best-hash-old');
     expect(summaryCached).toEqual(summaryInitial);
     expect(rpcCallMock).toHaveBeenCalledTimes(5);
@@ -158,7 +164,7 @@ describe('cache invalidation events', () => {
     bestblockhash = 'best-hash-new';
     emit(CacheEvents.BLOCK_NEW, { hash: bestblockhash });
 
-    const summaryAfter = await getTipSummary();
+    const summaryAfter = await getTipData();
     expect(summaryAfter.bestHash).toBe('best-hash-new');
     expect(rpcCallMock).toHaveBeenCalledTimes(10);
   });

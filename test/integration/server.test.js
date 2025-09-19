@@ -3,9 +3,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NotFoundError } from '../../src/errors.js';
 
 const serviceMocks = vi.hoisted(() => ({
-  getTipSummary: vi.fn(),
-  getBlockViewModel: vi.fn(),
-  getTransactionViewModel: vi.fn(),
+  getTipData: vi.fn(),
+  getBlockData: vi.fn(),
+  getTransactionData: vi.fn(),
   resolveSearchQuery: vi.fn()
 }));
 
@@ -25,7 +25,7 @@ beforeEach(() => {
 
 describe('server routes', () => {
   it('renders the home page using summary data', async () => {
-    serviceMocks.getTipSummary.mockResolvedValue({
+    serviceMocks.getTipData.mockResolvedValue({
       chain: 'main',
       height: 123,
       bestHash: 'hash',
@@ -38,40 +38,41 @@ describe('server routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.text).toContain('<strong>Chain:</strong> MAIN');
-    expect(serviceMocks.getTipSummary).toHaveBeenCalledTimes(1);
+    expect(serviceMocks.getTipData).toHaveBeenCalledTimes(1);
   });
 
   it('renders block details and passes pagination query', async () => {
-    serviceMocks.getBlockViewModel.mockResolvedValue({
+    serviceMocks.getBlockData.mockResolvedValue({
       hash: 'block-hash',
       height: 50,
-      time: 1700000000,
-      timestamp: '2023-11-14T22:13:20.000Z',
+      timestamp: 1700000000,
       size: 1000,
       weight: 4000,
       version: 1,
       bits: '1d00ffff',
       difficulty: 1,
-      previousblockhash: null,
-      nextblockhash: null,
+      previousBlockHash: null,
+      nextBlockHash: null,
       txCount: 1,
       txids: ['tx-1'],
-      page: 1,
-      totalPages: 1,
-      pageSize: 25
+      pagination: {
+        page: 1,
+        totalPages: 1,
+        pageSize: 25
+      }
     });
 
     const app = createApp();
     const response = await request(app).get('/block/50?page=1');
 
     expect(response.status).toBe(200);
-    expect(serviceMocks.getBlockViewModel).toHaveBeenCalledWith('50', 1);
+    expect(serviceMocks.getBlockData).toHaveBeenCalledWith('50', 1);
     expect(response.text).toContain('<code>block-hash</code>');
     expect(response.text).toContain('Transactions (page 1 of 1)');
   });
 
   it('renders transaction details', async () => {
-    serviceMocks.getTransactionViewModel.mockResolvedValue({
+    serviceMocks.getTransactionData.mockResolvedValue({
       txid: 'tx-1',
       hash: 'tx-1',
       size: 250,
@@ -94,7 +95,7 @@ describe('server routes', () => {
     const response = await request(app).get('/tx/tx-1');
 
     expect(response.status).toBe(200);
-    expect(serviceMocks.getTransactionViewModel).toHaveBeenCalledWith('tx-1');
+    expect(serviceMocks.getTransactionData).toHaveBeenCalledWith('tx-1');
     expect(response.text).toContain('<strong>TxID:</strong> <code>tx-1</code>');
     expect(response.text).toContain('<span class="tag">Fee</span> 0.0001');
   });
@@ -118,7 +119,7 @@ describe('server routes', () => {
   });
 
   it('renders service errors from handlers', async () => {
-    serviceMocks.getBlockViewModel.mockRejectedValue(new NotFoundError('missing block'));
+    serviceMocks.getBlockData.mockRejectedValue(new NotFoundError('missing block'));
 
     const app = createApp();
     const response = await request(app).get('/block/999');
