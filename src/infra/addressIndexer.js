@@ -176,10 +176,26 @@ export class AddressIndexer {
     const bestHeight = await rpcCall('getblockcount');
     const lastProcessed = Number(this.getMetadata('last_processed_height', -1));
     let nextHeight = lastProcessed + 1;
+    this.logger.info({
+      context: {
+        event: 'addressIndexer.sync.start',
+        fromHeight: nextHeight,
+        toHeight: bestHeight
+      }
+    }, 'Address index initial sync starting');
 
     while (nextHeight <= bestHeight) {
       await this.processBlockHeight(nextHeight);
       this.setMetadata('last_processed_height', nextHeight);
+      if (nextHeight === bestHeight || nextHeight % 100 === 0) {
+        this.logger.debug({
+          context: {
+            event: 'addressIndexer.sync.progress',
+            height: nextHeight,
+            remaining: bestHeight - nextHeight
+          }
+        }, 'Address index sync progress');
+      }
       nextHeight += 1;
     }
 
@@ -217,6 +233,13 @@ export class AddressIndexer {
     tx(transactionsWithPrevouts);
     this.setMetadata('last_processed_hash', hash);
     this.setMetadata('last_processed_height', height);
+    this.logger.debug({
+      context: {
+        event: 'addressIndexer.block.synced',
+        height,
+        hash
+      }
+    }, 'Processed block for address index');
   }
 
   processTransaction(transaction, prevouts, height, timestamp) {
