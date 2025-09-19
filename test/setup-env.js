@@ -1,0 +1,9 @@
+process.env.BITCOIN_RPC_URL = process.env.BITCOIN_RPC_URL ?? 'http://127.0.0.1:8332';
+process.env.BITCOIN_RPC_USER = process.env.BITCOIN_RPC_USER ?? 'explorer';
+process.env.BITCOIN_RPC_PASSWORD = process.env.BITCOIN_RPC_PASSWORD ?? 'explorer-secret';
+process.env.APP_BIND = process.env.APP_BIND ?? '127.0.0.1';
+process.env.APP_PORT = process.env.APP_PORT ?? '28765';
+process.env.CACHE_TTL_TIP = process.env.CACHE_TTL_TIP ?? '5000';
+process.env.CACHE_TTL_BLOCK = process.env.CACHE_TTL_BLOCK ?? '600000';
+process.env.CACHE_TTL_TX = process.env.CACHE_TTL_TX ?? '600000';
+process.env.BITCOIN_RPC_TIMEOUT = process.env.BITCOIN_RPC_TIMEOUT ?? '3000';
