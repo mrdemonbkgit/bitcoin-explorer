@@ -176,6 +176,8 @@ export class AddressIndexer {
     const bestHeight = await rpcCall('getblockcount');
     const lastProcessed = Number(this.getMetadata('last_processed_height', -1));
     let nextHeight = lastProcessed + 1;
+    const startHeight = nextHeight;
+    const totalBlocks = bestHeight - startHeight + 1;
     this.logger.info({
       context: {
         event: 'addressIndexer.sync.start',
@@ -187,14 +189,20 @@ export class AddressIndexer {
     while (nextHeight <= bestHeight) {
       await this.processBlockHeight(nextHeight);
       this.setMetadata('last_processed_height', nextHeight);
-      if (nextHeight === bestHeight || nextHeight % 100 === 0) {
-        this.logger.debug({
+      if (totalBlocks > 0 && (nextHeight === bestHeight || nextHeight % 100 === 0)) {
+        const processed = nextHeight - startHeight + 1;
+        const remaining = Math.max(0, totalBlocks - processed);
+        const percent = Math.round((processed / totalBlocks) * 100);
+        this.logger.info({
           context: {
             event: 'addressIndexer.sync.progress',
+            processed,
+            total: totalBlocks,
+            remaining,
             height: nextHeight,
-            remaining: bestHeight - nextHeight
+            percent
           }
-        }, 'Address index sync progress');
+        }, `Address index sync progress ${processed}/${totalBlocks} (${percent}%)`);
       }
       nextHeight += 1;
     }
