@@ -28,13 +28,65 @@
 - Address clustering, tagging, or heuristic analysis (future roadmap).
 - Replacing the indexer with Core’s `txindex` (assume `txindex=1` is present, but we still build derived address maps).
 
+## Storage Choice
+- Use SQLite 3.50.4 (latest stable as of 2025-09-20) via the `better-sqlite3` Node.js binding for a synchronous, zero-ORM interface.
+- Justification:
+  - Mature, battle-tested on embedded systems with robust ACID guarantees.
+  - Single-file database simplifies backup/restore and aligns with the “no external services” constraint.
+  - Deterministic synchronous API pairs well with the indexer loop without additional worker threads.
+- Operational notes:
+  - Default DB location `./data/address-index.db` (configurable via `ADDRESS_INDEX_PATH`).
+  - Enable WAL mode for concurrent reads while the indexer writes (`PRAGMA journal_mode=WAL`).
+  - Enforce `PRAGMA foreign_keys=ON` and `PRAGMA synchronous=NORMAL` to balance safety and performance.
+
+## Indexer Architecture
+1. **Data Model**
+   - `addresses` table: `address TEXT PRIMARY KEY`, `first_seen_height`, `last_seen_height`, `total_received_sat`, `total_sent_sat`, `balance_sat`, `tx_count`.
+   - `address_utxos`: composite primary key `(address, txid, vout)` storing `value_sat`, `height`, `script_pub_key`.
+   - `address_txs`: `(address, txid, height, direction ENUM('in','out'), value_sat, timestamp)` for chronological history.
+   - `xpubs`: store registered xpubs, gap limit, last derivation indices; `xpub_addresses` maps derived path to address + metadata.
+   - `metadata`: key/value store for schema version, last processed block hash/height, reorg checkpoints.
+
+2. **Initial Sync**
+   - Require `txindex=1`; pull best height, then iterate blocks via `getblockhash`/`getblock` to bootstrap.
+   - For each transaction, decode inputs/outputs, map scriptPubKey to addresses (support P2PKH, P2SH, Bech32 v0/v1).
+   - Batch inserts per block using prepared statements; wrap blocks in transactions for atomicity.
+   - Provide resumable sync by persisting last synced height/hash in `metadata`.
+
+3. **Incremental Updates**
+   - Subscribe to existing ZMQ `rawblock` and `rawtx` streams. On new block:
+     - Process as in bootstrap, then update `metadata.last_processed_height/hash`.
+     - Remove spent UTXOs from `address_utxos`, adjust balances and histories.
+   - On mempool `rawtx`, insert provisional records tagged `height = NULL`; reclassify when block arrives.
+   - Maintain a lightweight queue with retry/backoff for transient RPC issues.
+
+4. **Reorg Handling**
+   - Track block ancestry in `metadata`. When a reorg is detected (new block parent mismatch):
+     - Roll back affected blocks by replaying stored block transactions in reverse (using a rollback log table or `address_txs` entries with block heights).
+     - Reapply the new chain segment.
+   - Keep a configurable `REORG_DEPTH_LIMIT` (default 6) with alerts/logging if exceeded.
+
+5. **Xpub Support**
+   - Store registered xpubs with derivation paths (external/internal) and maintain a scanning queue respecting `ADDRESS_GAP_LIMIT` (default 20).
+   - Derive addresses using BIP32 (via `bitcoinjs-lib` or similar), insert into `xpub_addresses`, and link to `addresses` entries.
+   - Provide API/SSR endpoints to register/remove xpubs (feature-flagged) and display aggregated balances per branch.
+
+6. **APIs & Views**
+   - `/address/:id`: fetch summary from `addresses`, list UTXOs (default page size 25), include recent transactions from `address_txs`.
+   - `/xpub/:key`: show derived branch summary, balances, list of active addresses with balances, pagination for transactions.
+   - JSON counterparts under `/api/v1/address/:id` and `/api/v1/xpub/:key` for parity (optional in first iteration but recommended for alignment).
+
+7. **Operational Hooks**
+   - Expose metrics: new counters for index sync progress, reorgs, pending mempool entries, xpub derivations.
+   - Add CLI utilities (future) for rebuilding or pruning the index; document manual steps in RUNBOOK.
+
 ## Requirements (Draft)
 - Address page (`/address/:id`): show summary (balance, UTXO count, total received/sent), recent transactions with pagination, links to `/tx/:txid` and relevant blocks.
 - Xpub page (`/xpub/:key`): support BIP32 key derivation limited to a configured gap limit (default 20); display derived addresses and balances.
 - Indexer:
-  - Seed by scanning `listtransactions`/`gettxoutsetinfo`? (Need to determine strategy.)
-  - Keep data on-disk (LevelDB/SQLite) with TTL/compaction strategy.
-  - Listen to ZMQ (`rawtx`, `rawblock`) to stay in sync; handle reorgs gracefully.
+  - Initialise by scanning blocks sequentially (requires `txindex=1`); resumable via `metadata` checkpoints.
+  - Persist data in SQLite tables as outlined above; use WAL mode and prepared statements for performance.
+  - Subscribe to ZMQ (`rawtx`, `rawblock`) for near-real-time updates; handle reorgs with rollback log.
 - Configuration:
   - Feature flag `FEATURE_ADDRESS_EXPLORER` default false.
   - Paths for index storage (`ADDRESS_INDEX_PATH`), gap limit for xpub, optional prune toggles.
