@@ -213,5 +213,5 @@ These enhancements remain LAN-first and additive; operators can enable them incr
 
 ## 15) Roadmap Links
 - Mid-term workstreams (API/SSR split, address explorer, metrics exporter) are captured in `docs/EXPANSION.md` under the Mid-Term milestone.
-- The API + SSR implementation plan lives in `docs/design/api-ssr-plan.md`; the metrics exporter design is captured in `docs/design/metrics-exporter.md`. Consult both alongside this PRD when scoping the next milestone.
+- The API + SSR implementation plan lives in `docs/design/api-ssr-plan.md`; the metrics exporter design is captured in `docs/design/metrics-exporter.md`; WebSocket notification work is outlined in `docs/design/websocket-updates.md`. Consult these alongside this PRD when scoping the next milestone.
 - Operational and testing impacts are tracked in `docs/RUNBOOK.md` and `docs/TESTING.md`; update these alongside feature work.

@@ -46,7 +46,7 @@ This document captures ambitious growth directions for the explorer so we can pl
 
 ## Milestone Sketch
 - **Near-Term (Quarter 1)** ✅ Completed — ZMQ cache busting, mempool dashboard, structured logging, and CI smoke tests are live.
-- **Mid-Term (Quarter 2)** ▶ In progress — API surface (see `docs/design/api-ssr-plan.md`), address/xpub explorer with local index, WebSocket notifications, metrics exporter (plan: `docs/design/metrics-exporter.md`); coordinate scope with `docs/PRD.md` Section 15 and keep `docs/RUNBOOK.md`/`docs/TESTING.md` updated as milestones land.
+- **Mid-Term (Quarter 2)** ▶ In progress — API surface (see `docs/design/api-ssr-plan.md`), address/xpub explorer with local index, WebSocket notifications (plan: `docs/design/websocket-updates.md`), metrics exporter (plan: `docs/design/metrics-exporter.md`); coordinate scope with `docs/PRD.md` Section 15 and keep `docs/RUNBOOK.md`/`docs/TESTING.md` updated as milestones land.
 - **Long-Term (Quarter 3+)**: pluggable modules, analytics warehouse, multi-node awareness, optional authZ/authN stack.
 
 ### Near-Term Bundle Implementation Plan
