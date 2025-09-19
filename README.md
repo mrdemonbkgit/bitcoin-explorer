@@ -88,12 +88,16 @@ ADDRESS_XPUB_GAP_LIMIT=20
 - `/tx/:txid` — Transaction view with inputs, outputs, totals, and RBF hint
 - `/search?q=` — Smart search that routes to the relevant block or transaction
 - `/mempool` — Live mempool dashboard with fee histogram and recent transactions (requires ZMQ for sub-second invalidation)
+- `/address/:address` — Address summary (received/sent/balance), UTXOs, and paginated transaction history (requires address explorer feature flag)
+- `/xpub/:xpub` — Derived address summary for the first `ADDRESS_XPUB_GAP_LIMIT` paths, with balances and transaction counts
 
 ### JSON API
 - `/api/v1/tip` — Chain tip summary (JSON payload mirroring the home page data)
 - `/api/v1/block/:id` — Block metadata + paginated txids (`page` query supported)
 - `/api/v1/tx/:txid` — Transaction details including computed totals and RBF hint
 - `/api/v1/mempool` — Mempool snapshot (histogram + recent transactions, `page` query supported)
+- `/api/v1/address/:address` — Address summary, UTXOs, and transactions (`page`/`pageSize` query supported)
+- `/api/v1/xpub/:xpub` — Xpub-derived address summary and balances (limited by `ADDRESS_XPUB_GAP_LIMIT`)
 - JSON errors follow the shape `{ "error": { code, type, message }, "meta": {} }`
 - Full examples and testing notes live in `docs/API.md`
 

@@ -1,22 +1,22 @@
 # Address/Xpub Explorer — Discovery & Design Plan
 
 ## Task Tracker
-- [ ] Development — (Dev)
-  - [ ] Evaluate storage options (LevelDB vs SQLite/Badger) for a lightweight address index; document chosen approach.
-  - [ ] Implement indexer module ingesting transactions via RPC/ZMQ and persisting address→UTXO/tx mappings.
-  - [ ] Add backend services and routes for address/xpub lookup with pagination and summary statistics.
-  - [ ] Update Nunjucks views (address overview, transaction list) with SSR-first rendering.
+- [x] Development — (Dev)
+  - [x] Evaluate storage options and document SQLite choice.
+  - [x] Implement indexer module ingesting transactions via RPC/ZMQ and persisting address→UTXO/tx mappings.
+  - [x] Add backend services and routes for address/xpub lookup with pagination and summary statistics.
+  - [x] Update Nunjucks views (address overview, transaction list) with SSR-first rendering.
 - [ ] Quality Assurance — (QA)
-  - [ ] Design unit/integration tests covering index updates, lookup correctness, and pagination edge cases.
+  - [x] Design unit/integration tests covering index updates, lookup correctness, and pagination edge cases.
   - [ ] Extend regtest smoke to seed addresses/xpubs and validate explorer output (optional CI toggle like `REGTEST_ADDRESS_CHECK`).
-- [ ] DevOps — (DevOps)
-  - [ ] Document storage footprint, retention, and backup guidance in RUNBOOK; highlight new env vars/config for indexer.
-  - [ ] Ensure CI covers lint/typecheck/tests with the new indexer and address routes; monitor runtime impact.
-- [ ] Documentation — (Docs)
-  - [ ] Update README/TESTING with address explorer instructions and caveats (e.g., index build time, privacy notes).
-  - [ ] Add changelog entry when feature ships; cross-reference PRD/roadmap.
-- [ ] Product — (Product)
-  - [ ] Confirm scope (address summary fields, xpub support, rate limits) with stakeholders; update PRD/requirements as needed.
+- [x] DevOps — (DevOps)
+  - [x] Document storage footprint, retention, and backup guidance in RUNBOOK; highlight new env vars/config for indexer.
+  - [x] Ensure CI covers lint/typecheck/tests with the new indexer and address routes; monitor runtime impact.
+- [x] Documentation — (Docs)
+  - [x] Update README/TESTING with address explorer instructions and caveats (e.g., index build time, privacy notes).
+  - [x] Add changelog entry when feature ships; cross-reference PRD/roadmap.
+- [x] Product — (Product)
+  - [x] Confirm scope (address summary fields, xpub support, rate limits) with stakeholders; update PRD/requirements as needed.
 
 ## Background & Goals
 - Provide LAN operators with address/xpub visibility using data derived from their own Bitcoin Core node.

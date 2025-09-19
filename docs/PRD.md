@@ -25,9 +25,8 @@ A **local-LAN accessible**, read-only Bitcoin block explorer implemented with a 
 - Expose the explorer to **local LAN** directly on `0.0.0.0:<port>`.
 
 **Non‑Goals (MVP)**
-- No address/xpub/descriptor pages.
-- No analytics, charts, mempool browser, WebSockets/SSE, or ZMQ.
-- No Postgres/Redis; no background indexers.
+- No descriptor-based scanning or advanced analytics beyond balances/history.
+- No external databases (Postgres/Redis); only the bundled SQLite index.
 - No reverse proxy (Nginx) or systemd CPU/RAM caps.
 
 ---
@@ -50,10 +49,17 @@ A **local-LAN accessible**, read-only Bitcoin block explorer implemented with a 
 4. **Search (`/search?q=`)**
    - If `^[0-9]+$` → treat as height (resolve via `getblockhash`).
    - If `^[0-9a-f]{64}$` → try block hash; on miss, try txid.
+   - If recognisable address/xpub → route to respective explorer page.
    - Else → **400** with guidance.
 
+5. **Address (`/address/{id}`)** *(feature-flagged)*
+   - Render: balance, totals, first/last seen height, UTXO list, and paginated transaction history sourced from the local index.
+
+6. **Xpub (`/xpub/{key}`)** *(feature-flagged)*
+   - Derive first `ADDRESS_XPUB_GAP_LIMIT` paths on external/internal branches, showing balances and transaction counts; link to `/address/{id}` for deeper drill-down.
+
 **Errors**
-- **404** on unknown block/tx.
+- **404** on unknown block/tx/address/xpub.
 - **400** on invalid search query.
 - **503** if RPC times out or Core is unavailable.
 
@@ -168,9 +174,9 @@ http://<NODE_LAN_IP>:28765/   # e.g., http://192.168.1.213:28765/
 ---
 
 ## 10) Deliverables
-- **Routes**: `/`, `/block/{id}`, `/tx/{txid}`, `/search` via Express.
+- **Routes**: `/`, `/block/{id}`, `/tx/{txid}`, `/search`, `/address/{id}`, `/xpub/{key}` via Express (address/xpub behind feature flag).
 - **RPC client**: thin Axios wrapper with timeouts & error mapping.
-- **Views**: `views/layout.njk`, `views/home.njk`, `views/block.njk`, `views/tx.njk`.
+- **Views**: `views/layout.njk`, `views/home.njk`, `views/block.njk`, `views/tx.njk`, `views/address.njk`, `views/xpub.njk`.
 - **Scripts**: `src/server.js` (Express app), `src/rpc.js` (JSON-RPC client), `src/cache.js`.
 - **Docs**: `README.md` (quickstart), `RUNBOOK.md` (Core flags/env).
 
@@ -180,8 +186,9 @@ http://<NODE_LAN_IP>:28765/   # e.g., http://192.168.1.213:28765/
 1. **Home** shows height, best hash, mempool tx count/bytes, fee targets (1/3/6).
 2. **Block** by height/hash renders header + tx count and paginated txids.
 3. **Tx** renders inputs/outputs, totals, vsize/weight, locktime, RBF hint.
-4. **Search** routes correctly; invalid query → **400**.
+4. **Search** routes correctly (including address/xpub when feature enabled); invalid query → **400**.
 5. Unknown ids → **404**; RPC timeout/unreachable → **503**.
+6. Address explorer (when enabled) shows balances, UTXOs, and paginated history sourced from the local index; xpub explorer lists derived addresses and totals respecting the configured gap limit.
 
 ---
 
@@ -194,9 +201,8 @@ http://<NODE_LAN_IP>:28765/   # e.g., http://192.168.1.213:28765/
 ---
 
 ## 13) Future Extensions (post‑MVP)
-- ZMQ `rawblock` to instantly bust caches.
-- Mempool page (`getrawmempool true`) and optional SSE.
-- Address/descriptor pages (would require light indexing).
+- Descriptor scanning and address clustering heuristics.
+- Optional SSE/WebSocket upgrades for address/xpub real-time updates beyond the current broadcast scope.
 - Optional Nginx + auth, or systemd resource caps (if desired later).
 
 ## 14) Near-Term Expansion Roadmap
@@ -208,7 +214,7 @@ To support the upcoming feature bundle (see `docs/EXPANSION.md`), the next itera
 
 These enhancements remain LAN-first and additive; operators can enable them incrementally via new configuration flags documented in `docs/RUNBOOK.md` once implemented.
 
-**Status (current build):** All four items above are now implemented. Structured logs ship via `pino`, `/mempool` exposes live data with optional ZMQ invalidation, and `npm run test:regtest` exercises an automated regtest smoke suite.
+**Status (current build):** Structured logs ship via `pino`, `/mempool` exposes live data with optional ZMQ invalidation, `/address` & `/xpub` are available behind `FEATURE_ADDRESS_EXPLORER`, and `npm run test:regtest` exercises an automated regtest smoke suite.
 
 
 ## 15) Roadmap Links
