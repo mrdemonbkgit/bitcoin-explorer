@@ -1,17 +1,20 @@
 # Address/Xpub Explorer — Discovery & Design Plan
 
 ## Task Tracker
-- [x] Development — (Dev)
+- [ ] Development — (Dev)
   - [x] Evaluate storage options and document SQLite choice.
   - [x] Implement indexer module ingesting transactions via RPC/ZMQ and persisting address→UTXO/tx mappings.
   - [x] Add backend services and routes for address/xpub lookup with pagination and summary statistics.
   - [x] Update Nunjucks views (address overview, transaction list) with SSR-first rendering.
-- [x] Quality Assurance — (QA)
+  - [ ] Harden initial sync checkpoints (atomic transactions, rollback on mismatch) and add graceful shutdown hooks.
+- [ ] Quality Assurance — (QA)
   - [x] Design unit/integration tests covering index updates, lookup correctness, and pagination edge cases.
   - [x] Extend regtest smoke to seed addresses/xpubs and validate explorer output (optional CI toggle like `REGTEST_ADDRESS_CHECK`).
-- [x] DevOps — (DevOps)
+  - [ ] Add failure-injection tests that interrupt initial sync mid-block and confirm resume without reprocessing from height 0.
+- [ ] DevOps — (DevOps)
   - [x] Document storage footprint, retention, and backup guidance in RUNBOOK; highlight new env vars/config for indexer.
   - [x] Ensure CI covers lint/typecheck/tests with the new indexer and address routes; monitor runtime impact.
+  - [ ] Schedule nightly smoke to report checkpoint metrics and document operator recovery steps in RUNBOOK once resilience ships.
 - [x] Documentation — (Docs)
   - [x] Update README/TESTING with address explorer instructions and caveats (e.g., index build time, privacy notes).
   - [x] Add changelog entry when feature ships; cross-reference PRD/roadmap.
@@ -50,8 +53,8 @@
 2. **Initial Sync**
    - Require `txindex=1`; pull best height, then iterate blocks via `getblockhash`/`getblock` to bootstrap.
    - For each transaction, decode inputs/outputs, map scriptPubKey to addresses (support P2PKH, P2SH, Bech32 v0/v1).
-   - Batch inserts per block using prepared statements; wrap blocks in transactions for atomicity.
-   - Provide resumable sync by persisting last synced height/hash in `metadata`.
+   - Batch inserts per block using prepared statements; wrap blocks and their metadata updates in a single transaction so checkpoints are durable.
+   - Persist `last_processed_height/hash` after each committed block and validate the recorded height against table contents on startup to detect partial writes.
 
 3. **Incremental Updates**
    - Subscribe to existing ZMQ `rawblock` and `rawtx` streams. On new block:
@@ -95,7 +98,15 @@
   - Lookup latency < 500ms for cached addresses, < 2s for complex xpub scans.
 - Security/Privacy:
   - Document implications of storing address data; advise restricting LAN access.
-  - Provide cleanup script/env to disable and purge index.
+ - Provide cleanup script/env to disable and purge index.
+
+## Initial Sync Resilience Plan
+- **Failure mode verification**: simulate process crashes and signal-driven shutdowns during initial sync to document which checkpoints persist today; capture findings in WORKLOG and use them as regression tests.
+- **Atomic checkpoints**: finish each block inside a single SQLite transaction that writes both data rows and the `metadata` height/hash, followed by a WAL checkpoint/sync configuration tuned for bootstrap mode.
+- **Startup reconciliation**: on boot, compare the stored `last_processed_height/hash` with the highest block represented in `addresses/address_txs`; if inconsistent, roll back to the last clean height before resuming.
+- **Graceful shutdown**: add signal handlers so the indexer flushes in-flight blocks (stop fetching, commit current work, persist checkpoints) before the process exits.
+- **Observability**: emit structured logs and Prometheus counters for checkpoint commits, rollbacks, shutdown flush duration, and resume events so operators know progress is durable.
+- **Validation**: create automated tests (unit + regtest smoke) that interrupt sync mid-run and verify restart resumes from the saved checkpoint without reprocessing from genesis.
 
 ## Open Questions
 - Source of truth for historical data: use `getrawtransaction` + `decoderawtransaction` or rely on `scantxoutset`/`importmulti` flows?

@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import Database from 'better-sqlite3';
 import { config } from '../config.js';
 import { getLogger } from './logger.js';
@@ -31,6 +32,9 @@ export class AddressIndexer {
     this.statements = {};
     this.subscriptions = [];
     this.prevoutCache = new Map();
+    this.stopping = false;
+    this.signalHandlers = [];
+    this.syncInProgress = false;
   }
 
   open() {
@@ -163,13 +167,97 @@ export class AddressIndexer {
     this.statements.insertMetadata.run(key, String(value));
   }
 
+  registerSignalHandlers() {
+    const handleSignal = async (signal) => {
+      if (this.stopping) {
+        return;
+      }
+      this.stopping = true;
+      this.logger.info({ context: { event: 'addressIndexer.shutdown.signal', signal } }, 'Received shutdown signal; waiting for indexer to flush');
+      try {
+        await this.awaitSyncDrain();
+      } catch (error) {
+        this.logger.warn({ context: { event: 'addressIndexer.shutdown.flush.error', signal }, err: error }, 'Timed out flushing indexer before shutdown');
+      }
+      try {
+        this.close();
+      } catch (closeError) {
+        this.logger.warn({ context: { event: 'addressIndexer.shutdown.close.error', signal }, err: closeError }, 'Error closing indexer after shutdown signal');
+      }
+    };
+
+    for (const signal of ['SIGINT', 'SIGTERM']) {
+      const handler = handleSignal.bind(this, signal);
+      process.once(signal, handler);
+      this.signalHandlers.push({ signal, handler });
+    }
+  }
+
+  unregisterSignalHandlers() {
+    for (const { signal, handler } of this.signalHandlers) {
+      process.removeListener(signal, handler);
+    }
+    this.signalHandlers = [];
+  }
+
+  async awaitSyncDrain(timeoutMs = 10_000) {
+    const start = Date.now();
+    while (this.syncInProgress) {
+      if (Date.now() - start > timeoutMs) {
+        throw new Error('Timed out waiting for sync to finish');
+      }
+      await delay(50);
+    }
+  }
+
+  async reconcileCheckpoint() {
+    const storedHeight = Number(this.getMetadata('last_processed_height', -1));
+    const txHeightRow = this.db.prepare('SELECT MAX(height) AS height FROM address_txs').get();
+    const utxoHeightRow = this.db.prepare('SELECT MAX(height) AS height FROM address_utxos').get();
+    const observedHeight = Math.max(
+      Number.isFinite(txHeightRow?.height) ? Number(txHeightRow.height) : -1,
+      Number.isFinite(utxoHeightRow?.height) ? Number(utxoHeightRow.height) : -1
+    );
+
+    if (observedHeight >= 0 && storedHeight !== observedHeight) {
+      this.logger.warn({
+        context: {
+          event: 'addressIndexer.checkpoint.reconcile',
+          storedHeight,
+          observedHeight
+        }
+      }, 'Adjusting checkpoint metadata after unclean shutdown');
+      this.setMetadata('last_processed_height', observedHeight);
+      try {
+        const reconciledHash = await rpcCall('getblockhash', [observedHeight]);
+        this.setMetadata('last_processed_hash', reconciledHash);
+      } catch (error) {
+        this.logger.warn({ context: { event: 'addressIndexer.checkpoint.hash.reconcile', height: observedHeight }, err: error }, 'Unable to reconcile last processed hash');
+      }
+    } else if (observedHeight < 0 && storedHeight >= 0) {
+      this.logger.warn({
+        context: {
+          event: 'addressIndexer.checkpoint.reset',
+          storedHeight
+        }
+      }, 'Resetting checkpoint metadata after detecting empty index tables');
+      this.setMetadata('last_processed_height', -1);
+      this.setMetadata('last_processed_hash', '');
+    }
+  }
+
   async start() {
     if (this.db) {
       return;
     }
+    this.stopping = false;
     this.open();
+    await this.reconcileCheckpoint();
+    this.registerSignalHandlers();
     await this.initialSync();
-    this.watchZmq();
+    if (!this.stopping) {
+      this.watchZmq();
+    }
   }
 
   async initialSync() {
@@ -186,9 +274,13 @@ export class AddressIndexer {
       }
     }, 'Address index initial sync starting');
 
-    while (nextHeight <= bestHeight) {
-      await this.processBlockHeight(nextHeight);
-      this.setMetadata('last_processed_height', nextHeight);
+    while (!this.stopping && nextHeight <= bestHeight) {
+      this.syncInProgress = true;
+      try {
+        await this.processBlockHeight(nextHeight);
+      } finally {
+        this.syncInProgress = false;
+      }
       if (totalBlocks > 0 && (nextHeight === bestHeight || nextHeight % 100 === 0)) {
         const processed = nextHeight - startHeight + 1;
         const remaining = Math.max(0, totalBlocks - processed);
@@ -206,6 +298,8 @@ export class AddressIndexer {
       }
       nextHeight += 1;
     }
+
+    this.syncInProgress = false;
 
     this.logger.info({
       context: {
@@ -236,11 +330,11 @@ export class AddressIndexer {
       for (const entry of entries) {
         this.processTransaction(entry.transaction, entry.prevouts, height, timestamp);
       }
+      this.setMetadata('last_processed_hash', hash);
+      this.setMetadata('last_processed_height', height);
     });
 
     tx(transactionsWithPrevouts);
-    this.setMetadata('last_processed_hash', hash);
-    this.setMetadata('last_processed_height', height);
     this.logger.debug({
       context: {
         event: 'addressIndexer.block.synced',
@@ -346,10 +440,16 @@ export class AddressIndexer {
 
   async watchZmq() {
     const unsubscribeBlock = subscribe(CacheEvents.BLOCK_NEW, async ({ hash }) => {
+      if (this.stopping) {
+        return;
+      }
+      this.syncInProgress = true;
       try {
         await this.processBlockHash(hash);
       } catch (error) {
         this.logger.error({ context: { event: 'addressIndexer.block.error', hash }, err: error }, 'Failed to process new block');
+      } finally {
+        this.syncInProgress = false;
       }
     });
 
@@ -357,6 +457,9 @@ export class AddressIndexer {
   }
 
   close() {
+    this.unregisterSignalHandlers();
+    this.stopping = true;
+    this.syncInProgress = false;
     for (const unsubscribe of this.subscriptions) {
       try {
         unsubscribe();
