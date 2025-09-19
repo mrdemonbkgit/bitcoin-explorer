@@ -87,3 +87,15 @@ Keep this document updated as new features land or testing strategy evolves.
 2. Start the explorer and visit `/` and `/mempool` in a modern browser; open the console to confirm a WebSocket connection is established. Mine a block or broadcast a transaction (on regtest) and observe the UI updating without a page refresh.
 3. If the WebSocket gateway is disabled, the client-side script remains inert and pages fall back to cached TTL behaviour.
 4. For automated coverage, run `REGTEST_WS_CHECK=true npm run test:regtest`; the smoke suite will open a WebSocket and assert that at least one broadcast arrives during the block/tx scenarios.
+
+## 9. Address/Xpub Explorer
+1. Enable the feature in `.env`:
+   ```ini
+   FEATURE_ADDRESS_EXPLORER=true
+   ADDRESS_INDEX_PATH=./data/address-index.db
+   ADDRESS_XPUB_GAP_LIMIT=20
+   ```
+2. Start the explorer and monitor logs for `addressIndexer.sync.complete`. Initial sync can take time depending on chain size.
+3. Once synced, visit `/address/<known-address>` to verify balances, UTXOs, and transaction listings. Cross-check against `bitcoin-cli listunspent` for accuracy.
+4. For xpubs, load `/xpub/<xpub>`; ensure derived addresses and totals align with wallet data. Adjust `ADDRESS_XPUB_GAP_LIMIT` if expected addresses fall outside the scanned range.
+5. Optional: on regtest, mine a block/send funds and confirm the address page updates without a restart.

@@ -18,6 +18,12 @@ import { asyncHandler } from './utils/asyncHandler.js';
 import { getMempoolViewModel } from './services/mempoolService.js';
 import { metricsEnabled, metricsHandler } from './infra/metrics.js';
 import { startWebsocketGateway } from './infra/websocketGateway.js';
+import {
+  primeAddressIndexer,
+  getAddressDetails,
+  getXpubDetails
+} from './services/addressExplorerService.js';
+import { stopAddressIndexer } from './infra/addressIndexer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,6 +57,14 @@ export function createApp() {
   app.set('view engine', 'njk');
   app.locals.features = config.features;
   app.locals.websocket = config.websocket;
+  app.locals.address = config.address;
+
+  if (config.address.enabled) {
+    primeAddressIndexer().catch((error) => {
+      const logger = getLogger();
+      logger.error({ context: { event: 'addressIndexer.startup.error' }, err: error }, 'Failed to start address indexer');
+    });
+  }
 
   app.get('/', asyncHandler(async (req, res) => {
     const summary = await getTipData();
@@ -95,6 +109,12 @@ export function createApp() {
     if (result.type === 'tx') {
       return res.redirect(302, `/tx/${result.id}`);
     }
+    if (result.type === 'address') {
+      return res.redirect(302, `/address/${result.id}`);
+    }
+    if (result.type === 'xpub') {
+      return res.redirect(302, `/xpub/${result.id}`);
+    }
     throw new NotFoundError('No matching resource');
   }));
 
@@ -103,6 +123,25 @@ export function createApp() {
       const page = Number(req.query.page) || 1;
       const mempool = await getMempoolViewModel(page);
       res.render('mempool.njk', { mempool });
+    }));
+  }
+
+  if (config.features.addressExplorer) {
+    app.get('/address/:address', asyncHandler(async (req, res) => {
+      const page = Number(req.query.page) || 1;
+      const pageSize = Number(req.query.pageSize) || 25;
+      const data = await getAddressDetails(req.params.address, { page, pageSize });
+      res.render('address.njk', {
+        addressSummary: data.summary,
+        utxos: data.utxos,
+        transactions: data.transactions,
+        pagination: data.pagination
+      });
+    }));
+
+    app.get('/xpub/:xpub', asyncHandler(async (req, res) => {
+      const details = await getXpubDetails(req.params.xpub);
+      res.render('xpub.njk', { xpub: details });
     }));
   }
 
@@ -239,6 +278,9 @@ function startServer() {
         }
       } else if (stopZmqListener) {
         await stopZmqListener();
+      }
+      if (config.address.enabled) {
+        stopAddressIndexer();
       }
     } catch (error) {
       logger.error({ context: { event: 'server.shutdown.error' }, err: error }, 'server.shutdown.error');

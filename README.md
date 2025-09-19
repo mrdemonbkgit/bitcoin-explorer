@@ -68,6 +68,9 @@ METRICS_INCLUDE_DEFAULT=false
 WEBSOCKET_ENABLED=false
 WEBSOCKET_PATH=/ws
 WEBSOCKET_PORT=
+FEATURE_ADDRESS_EXPLORER=false
+ADDRESS_INDEX_PATH=./data/address-index.db
+ADDRESS_XPUB_GAP_LIMIT=20
 ```
 
 ### Realtime Updates, Logging, Metrics & WebSockets
@@ -77,6 +80,7 @@ WEBSOCKET_PORT=
 - Toggle the mempool dashboard entirely via `FEATURE_MEMPOOL_DASHBOARD=false` if operators prefer to disable the route.
 - Enable the Prometheus exporter with `METRICS_ENABLED=true`. The endpoint defaults to `/metrics` on the main bind; adjust via `METRICS_PATH`. Set `METRICS_INCLUDE_DEFAULT=true` to expose Node.js process metrics.
 - Enable LAN-only WebSocket pushes with `WEBSOCKET_ENABLED=true`. Clients use the configured `WEBSOCKET_PATH` (default `/ws`) and reuse the main server port unless `WEBSOCKET_PORT` is set. When active, the home and mempool pages hydrate with near-real-time updates while remaining fully functional without WebSockets.
+- Enable the address/xpub explorer with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (SQLite) and uses `ADDRESS_XPUB_GAP_LIMIT` (default 20) when deriving xpub branches. Initial sync walks the chain via RPC; expect it to take time proportional to chain size.
 
 ## Available Routes
 - `/` — Home dashboard with chain tip, mempool status, fee estimates, and search box

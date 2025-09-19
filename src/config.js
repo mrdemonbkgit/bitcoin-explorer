@@ -52,7 +52,10 @@ const ConfigSchema = z.object({
   METRICS_INCLUDE_DEFAULT: BooleanSchema.default(false),
   WEBSOCKET_ENABLED: BooleanSchema.default(false),
   WEBSOCKET_PATH: z.string().regex(/^\//, 'WebSocket path must start with /').default('/ws'),
-  WEBSOCKET_PORT: OptionalPortSchema
+  WEBSOCKET_PORT: OptionalPortSchema,
+  FEATURE_ADDRESS_EXPLORER: BooleanSchema.default(false),
+  ADDRESS_INDEX_PATH: z.string().default('./data/address-index.db'),
+  ADDRESS_XPUB_GAP_LIMIT: z.coerce.number().int().positive().default(20)
 }).superRefine((data, ctx) => {
   const hasCookie = Boolean(data.BITCOIN_RPC_COOKIE);
   const hasUserPass = Boolean(data.BITCOIN_RPC_USER && data.BITCOIN_RPC_PASSWORD);
@@ -94,7 +97,8 @@ export const config = Object.freeze({
   },
   features: {
     mempoolDashboard: cfg.FEATURE_MEMPOOL_DASHBOARD,
-    websocket: cfg.WEBSOCKET_ENABLED
+    websocket: cfg.WEBSOCKET_ENABLED,
+    addressExplorer: cfg.FEATURE_ADDRESS_EXPLORER
   },
   metrics: {
     enabled: cfg.METRICS_ENABLED,
@@ -105,5 +109,10 @@ export const config = Object.freeze({
     enabled: cfg.WEBSOCKET_ENABLED,
     path: cfg.WEBSOCKET_PATH,
     port: cfg.WEBSOCKET_PORT
+  },
+  address: {
+    enabled: cfg.FEATURE_ADDRESS_EXPLORER,
+    indexPath: cfg.ADDRESS_INDEX_PATH,
+    xpubGapLimit: cfg.ADDRESS_XPUB_GAP_LIMIT
   }
 });

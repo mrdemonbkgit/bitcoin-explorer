@@ -1,0 +1,83 @@
+{% extends "layout.njk" %}
+
+{% block title %}Address {{ addressSummary.address }} · Slim Bitcoin Explorer{% endblock %}
+{% block page_id %}address{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <h2>Address Summary</h2>
+    <p><strong>Address:</strong> <code>{{ addressSummary.address }}</code></p>
+    <p><strong>First Seen Height:</strong> {{ addressSummary.firstSeenHeight | default('n/a') }}</p>
+    <p><strong>Last Seen Height:</strong> {{ addressSummary.lastSeenHeight | default('n/a') }}</p>
+    <p><strong>Balance (sat):</strong> {{ addressSummary.balanceSat }}</p>
+    <p><strong>Total Received (sat):</strong> {{ addressSummary.totalReceivedSat }}</p>
+    <p><strong>Total Sent (sat):</strong> {{ addressSummary.totalSentSat }}</p>
+    <p><strong>Transactions:</strong> {{ addressSummary.txCount }}</p>
+    <p><strong>UTXOs:</strong> {{ addressSummary.utxoCount }} ({{ addressSummary.utxoValueSat }} sat)</p>
+  </div>
+
+  <div class="card">
+    <h2>Unspent Outputs</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>TxID</th>
+          <th>Vout</th>
+          <th>Value (sat)</th>
+          <th>Height</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for utxo in utxos %}
+          <tr>
+            <td><a href="/tx/{{ utxo.txid }}"><code>{{ utxo.txid }}</code></a></td>
+            <td>{{ utxo.vout }}</td>
+            <td>{{ utxo.value_sat }}</td>
+            <td>{{ utxo.height | default('n/a') }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="4" class="muted">No UTXOs currently recorded.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Transactions (page {{ pagination.page }})</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>TxID</th>
+          <th>Direction</th>
+          <th>Value (sat)</th>
+          <th>Height</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tx in transactions %}
+          <tr>
+            <td><a href="/tx/{{ tx.txid }}"><code>{{ tx.txid }}</code></a></td>
+            <td>{{ tx.direction }}</td>
+            <td>{{ tx.value_sat }}</td>
+            <td>{{ tx.height | default('n/a') }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="4" class="muted">No transactions recorded.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination">
+      {% if pagination.page > 1 %}
+        <a href="?page={{ pagination.page - 1 }}">Previous</a>
+      {% endif %}
+      <span>Page {{ pagination.page }}</span>
+      {% if pagination.page * pagination.pageSize < pagination.totalRows %}
+        <a href="?page={{ pagination.page + 1 }}">Next</a>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

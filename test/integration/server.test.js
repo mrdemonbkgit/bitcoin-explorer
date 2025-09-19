@@ -13,14 +13,23 @@ const mempoolMock = vi.hoisted(() => ({
   getMempoolViewModel: vi.fn()
 }));
 
+const addressExplorerMocks = vi.hoisted(() => ({
+  primeAddressIndexer: vi.fn().mockResolvedValue(null),
+  getAddressDetails: vi.fn(),
+  getXpubDetails: vi.fn()
+}));
+
 vi.mock('../../src/services/bitcoinService.js', () => serviceMocks);
 vi.mock('../../src/services/mempoolService.js', () => mempoolMock);
+vi.mock('../../src/services/addressExplorerService.js', () => addressExplorerMocks);
 
 import { createApp } from '../../src/server.js';
 
 beforeEach(() => {
   Object.values(serviceMocks).forEach((mock) => mock.mockReset());
   mempoolMock.getMempoolViewModel.mockReset();
+  Object.values(addressExplorerMocks).forEach((mock) => mock.mockReset?.());
+  addressExplorerMocks.primeAddressIndexer.mockResolvedValue(null);
 });
 
 describe('server routes', () => {
@@ -157,5 +166,60 @@ describe('server routes', () => {
     expect(response.text).toContain('Mempool Overview');
     expect(response.text).toContain('tx123');
     expect(mempoolMock.getMempoolViewModel).toHaveBeenCalledWith(1);
+  });
+
+  it('renders an address page when explorer is enabled', async () => {
+    addressExplorerMocks.getAddressDetails.mockResolvedValue({
+      summary: {
+        address: 'bc1qexample',
+        firstSeenHeight: 100,
+        lastSeenHeight: 120,
+        balanceSat: 5000,
+        totalReceivedSat: 10000,
+        totalSentSat: 5000,
+        txCount: 2,
+        utxoCount: 1,
+        utxoValueSat: 5000
+      },
+      utxos: [
+        { txid: 'tx123', vout: 0, value_sat: 5000, height: 120 }
+      ],
+      transactions: [
+        { txid: 'tx123', direction: 'in', value_sat: 5000, height: 120, io_index: 0, timestamp: 1700000000 }
+      ],
+      pagination: { page: 1, pageSize: 25, totalRows: 1 }
+    });
+
+    const app = createApp();
+    const response = await request(app).get('/address/bc1qexample');
+
+    expect(response.status).toBe(200);
+    expect(addressExplorerMocks.getAddressDetails).toHaveBeenCalledWith('bc1qexample', { page: 1, pageSize: 25 });
+    expect(response.text).toContain('Address Summary');
+    expect(response.text).toContain('bc1qexample');
+  });
+
+  it('renders an xpub page with derived addresses', async () => {
+    addressExplorerMocks.getXpubDetails.mockResolvedValue({
+      xpub: 'xpub-test',
+      gapLimit: 5,
+      totals: {
+        balanceSat: 100,
+        totalReceivedSat: 200,
+        totalSentSat: 100
+      },
+      addresses: [
+        { branch: 0, index: 0, address: 'bc1qaddr0', balanceSat: 50, totalReceivedSat: 100, totalSentSat: 50, txCount: 1 },
+        { branch: 1, index: 0, address: 'bc1qchange0', balanceSat: 50, totalReceivedSat: 100, totalSentSat: 50, txCount: 1 }
+      ]
+    });
+
+    const app = createApp();
+    const response = await request(app).get('/xpub/xpub-test');
+
+    expect(response.status).toBe(200);
+    expect(addressExplorerMocks.getXpubDetails).toHaveBeenCalledWith('xpub-test');
+    expect(response.text).toContain('xpub-test');
+    expect(response.text).toContain('bc1qaddr0');
   });
 });

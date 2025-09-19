@@ -6,3 +6,4 @@
 - Documented a curl-based API smoke checklist to guide manual verification during rollout.
 - Added an optional Prometheus metrics exporter (`/metrics`) with HTTP/RPC/cache/ZMQ instrumentation, documentation updates, and regtest coverage.
 - Laid out the WebSocket notifications plan and implemented LAN-only WebSocket push updates with client hydration, configuration flags, metrics/logging, and optional regtest smoke coverage.
+- Added a SQLite-backed address/xpub explorer behind `FEATURE_ADDRESS_EXPLORER`, including indexer architecture, SSR/API routes, and docs/tests for configuration and usage.

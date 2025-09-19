@@ -194,29 +194,39 @@ export async function resolveSearchQuery(query) {
     throw new BadRequestError('Search query is required');
   }
 
+  const bech32Address = /^(bc1|tb1|bcrt1)[0-9a-z]{11,71}$/i;
+  const base58Address = /^[123mn][1-9A-HJ-NP-Za-km-z]{25,39}$/;
+  const xpubPattern = /^(xpub|ypub|zpub|tpub|vpub|upub|Ypub|Zpub|Vpub|Upub)/;
+
+  if (bech32Address.test(value) || base58Address.test(value)) {
+    return { type: 'address', id: value };
+  }
+
+  if (xpubPattern.test(value)) {
+    return { type: 'xpub', id: value };
+  }
+
   if (DIGITS.test(value)) {
     return { type: 'block', id: value };
   }
 
-  if (!HEX_64.test(value)) {
-    throw new BadRequestError('Query must be a block height or 64-character hash');
-  }
-
-  try {
-    const block = await fetchBlock(value);
-    if (block) {
-      return { type: 'block', id: block.hash };
+  if (HEX_64.test(value)) {
+    try {
+      const block = await fetchBlock(value);
+      if (block) {
+        return { type: 'block', id: block.hash };
+      }
+    } catch (error) {
+      if (!(error instanceof NotFoundError)) {
+        throw error;
+      }
     }
-  } catch (error) {
-    if (!(error instanceof NotFoundError)) {
-      throw error;
+
+    const tx = await getTransactionData(value);
+    if (tx) {
+      return { type: 'tx', id: value };
     }
   }
 
-  const tx = await getTransactionData(value);
-  if (tx) {
-    return { type: 'tx', id: value };
-  }
-
-  throw new NotFoundError('No block or transaction found for query');
+  throw new NotFoundError('No matching resource for query');
 }

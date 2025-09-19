@@ -1,0 +1,45 @@
+{% extends "layout.njk" %}
+
+{% block title %}xpub {{ xpub.xpub }} · Slim Bitcoin Explorer{% endblock %}
+{% block page_id %}xpub{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <h2>Xpub Summary</h2>
+    <p><strong>Xpub:</strong> <code>{{ xpub.xpub }}</code></p>
+    <p><strong>Gap Limit:</strong> {{ xpub.gapLimit }}</p>
+    <p><strong>Total Balance (sat):</strong> {{ xpub.totals.balanceSat }}</p>
+    <p><strong>Total Received (sat):</strong> {{ xpub.totals.totalReceivedSat }}</p>
+    <p><strong>Total Sent (sat):</strong> {{ xpub.totals.totalSentSat }}</p>
+  </div>
+
+  <div class="card">
+    <h2>Derived Addresses (first {{ xpub.gapLimit }} per branch)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Branch</th>
+          <th>Index</th>
+          <th>Address</th>
+          <th>Balance (sat)</th>
+          <th>Tx Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in xpub.addresses %}
+          <tr>
+            <td>{% if item.branch == 0 %}External{% else %}Internal{% endif %}</td>
+            <td>{{ item.index }}</td>
+            <td><a href="/address/{{ item.address }}"><code>{{ item.address }}</code></a></td>
+            <td>{{ item.balanceSat }}</td>
+            <td>{{ item.txCount }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5" class="muted">No derived addresses available.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

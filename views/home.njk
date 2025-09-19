@@ -6,7 +6,7 @@
 {% block content %}
   <div class="card">
     <form class="search" action="/search" method="get">
-      <input type="text" name="q" placeholder="Block height, hash, or transaction id" required>
+      <input id="global-search" type="text" name="q" placeholder="Block height, hash, txid, address, or xpub" required>
       <button type="submit">Search</button>
     </form>
   </div>

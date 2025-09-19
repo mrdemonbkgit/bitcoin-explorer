@@ -38,6 +38,8 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
   - Context: `docs/design/metrics-exporter.md` Task Tracker completed; updated README/RUNBOOK/TESTING for env flags and smoke steps.
 - feat(websocket): deliver LAN WebSocket notifications + client hydration — (Commit d594bfd)
   - Context: `docs/design/websocket-updates.md` Task Tracker completed; home/mempool pages now auto-refresh using `/api/v1` data; optional regtest WS check added.
+- feat(address): ship SQLite-backed address/xpub explorer with SSR/API routes — (Commit TBD)
+  - Context: `docs/design/address-explorer.md` Task Tracker completed; indexer syncs via RPC/ZMQ, new `/address/:id` & `/xpub/:key` views/APIs, docs updated (README/RUNBOOK/TESTING) with env guidance.
 - docs(worklog): note resetting metrics flags after verification — (Commit 584f9c7)
 - docs(design): add WebSocket notifications plan + Task Tracker updates — (Commit 80fec11)
 
