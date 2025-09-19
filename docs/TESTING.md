@@ -43,6 +43,7 @@ This guide captures manual and automated checks for the near-term feature bundle
 
 ## 4. Automated Suites
 - **Unit/Integration:** `npm run test` (or `npm run coverage`). Ensures cache invalidation, logging utilities, and routes behave as expected.
+- API parity tests (`test/integration/api.test.js`, `test/integration/parity.test.js`) verify that `/api/v1` responses stay aligned with their HTML counterparts.
 - **Quality Gate:** `npm run ci` (lint → typecheck → coverage) for local parity with GitHub Actions.
 - **Regtest Smoke:** `npm run test:regtest`
   - Requires `bitcoind` in PATH.

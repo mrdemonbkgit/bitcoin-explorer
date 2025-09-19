@@ -76,6 +76,13 @@ BITCOIN_RPC_TIMEOUT=3000
 - `/search?q=` — Smart search that routes to the relevant block or transaction
 - `/mempool` — Live mempool dashboard with fee histogram and recent transactions (requires ZMQ for sub-second invalidation)
 
+### JSON API
+- `/api/v1/tip` — Chain tip summary (JSON payload mirroring the home page data)
+- `/api/v1/block/:id` — Block metadata + paginated txids (`page` query supported)
+- `/api/v1/tx/:txid` — Transaction details including computed totals and RBF hint
+- `/api/v1/mempool` — Mempool snapshot (histogram + recent transactions, `page` query supported)
+- JSON errors follow the shape `{ "error": { code, type, message }, "meta": {} }`
+
 ## Project Layout
 ```
 ├── AGENTS.md

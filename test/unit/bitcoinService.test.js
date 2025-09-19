@@ -11,6 +11,7 @@ import {
   getBlockData,
   getBlockViewModel,
   getTipData,
+  getTransactionData,
   resolveSearchQuery
 } from '../../src/services/bitcoinService.js';
 import { emit, CacheEvents } from '../../src/infra/cacheEvents.js';
@@ -62,11 +63,49 @@ describe('getBlockData and getBlockViewModel', () => {
   });
 });
 
+describe('getTransactionData', () => {
+  it('returns transaction data with calculated fields', async () => {
+    const txid = 'a'.repeat(64);
+
+    rpcCallMock.mockImplementation(async (method, params) => {
+      if (method === 'getrawtransaction') {
+        expect(params).toEqual([txid, 2]);
+        return {
+          txid,
+          hash: txid,
+          size: 200,
+          weight: 800,
+          locktime: 0,
+          vin: [
+            {
+              value: 1.2,
+              sequence: 0xfffffffd
+            }
+          ],
+          vout: [
+            { value: 0.5 },
+            { value: 0.6999 }
+          ]
+        };
+      }
+      throw new Error(`Unexpected RPC call: ${method}`);
+    });
+
+    const data = await getTransactionData(txid);
+
+    expect(data.txid).toBe(txid);
+    expect(data.inputValue).toBeCloseTo(1.2);
+    expect(data.outputValue).toBeCloseTo(1.1999);
+    expect(data.fee).toBeCloseTo(0.0001);
+    expect(data.isRbf).toBe(true);
+  });
+});
+
 describe('resolveSearchQuery', () => {
   it('returns transaction redirect when block is not found', async () => {
     const txid = 'a'.repeat(64);
 
-    rpcCallMock.mockImplementation(async (method) => {
+    rpcCallMock.mockImplementation(async (method, params) => {
       if (method === 'getblock') {
         throw new NotFoundError('not found');
       }
@@ -77,16 +116,12 @@ describe('resolveSearchQuery', () => {
           size: 200,
           weight: 800,
           locktime: 0,
-          vin: [
-            {
-              sequence: 0xfffffffd,
-              prevout: { value: 1.5 }
-            }
-          ],
-          vout: [
-            { value: 0.7 },
-            { value: 0.7999 }
-          ]
+          vin: [],
+          vout: [],
+          inputValue: 1.5,
+          outputValue: 1.4999,
+          fee: 0.0001,
+          isRbf: true
         };
       }
       throw new Error(`Unexpected RPC call: ${method}`);
@@ -95,7 +130,6 @@ describe('resolveSearchQuery', () => {
     const result = await resolveSearchQuery(txid);
 
     expect(result).toEqual({ type: 'tx', id: txid });
-    expect(rpcCallMock).toHaveBeenCalledWith('getrawtransaction', [txid, 2]);
   });
 });
 

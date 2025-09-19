@@ -63,6 +63,7 @@ npm run test:regtest
 
 ## Health Checks
 - HTTP GET `/` should return 200 with the latest chain tip and mempool figures.
+- JSON API endpoints (`/api/v1/tip`, `/api/v1/block/:id`, `/api/v1/tx/:txid`, `/api/v1/mempool`) should return 200 with expected payloads; inspect structured logs for request IDs when debugging.
 - `/block/<height>` and `/tx/<txid>` should render without 5xx responses for known values.
 - Monitor logs for `503` responses; these indicate Bitcoin Core RPC connectivity issues.
 
