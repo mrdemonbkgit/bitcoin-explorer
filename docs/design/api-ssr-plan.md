@@ -76,9 +76,9 @@
 - Extend `npm run test` and `npm run coverage` coverage expectations; add API cases to `docs/TESTING.md`.
 
 ### Phase 5 — Documentation & DX
-- Author `docs/API.md` (or README section) listing endpoints, sample requests/responses, and status codes.
-- Update README/Runbook with API information and headers guidance.
-- Mention in `docs/EXPANSION.md` that API split milestone is underway; adjust milestone timelines.
+- ✅ `docs/API.md` captures endpoints, sample responses, and error formats.
+- ✅ README + Runbook now reference the JSON API and health checks.
+- ✅ `docs/TESTING.md` includes API coverage steps.
 
 ### Phase 6 — Rollout
 - Smoke test locally (curl/Postman) hitting all endpoints.

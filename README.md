@@ -82,6 +82,7 @@ BITCOIN_RPC_TIMEOUT=3000
 - `/api/v1/tx/:txid` — Transaction details including computed totals and RBF hint
 - `/api/v1/mempool` — Mempool snapshot (histogram + recent transactions, `page` query supported)
 - JSON errors follow the shape `{ "error": { code, type, message }, "meta": {} }`
+- Full examples and testing notes live in `docs/API.md`
 
 ## Project Layout
 ```
