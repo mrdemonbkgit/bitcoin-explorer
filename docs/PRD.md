@@ -209,3 +209,9 @@ To support the upcoming feature bundle (see `docs/EXPANSION.md`), the next itera
 These enhancements remain LAN-first and additive; operators can enable them incrementally via new configuration flags documented in `docs/RUNBOOK.md` once implemented.
 
 **Status (current build):** All four items above are now implemented. Structured logs ship via `pino`, `/mempool` exposes live data with optional ZMQ invalidation, and `npm run test:regtest` exercises an automated regtest smoke suite.
+
+
+## 15) Roadmap Links
+- Mid-term workstreams (API/SSR split, address explorer, metrics exporter) are captured in `docs/EXPANSION.md` under the Mid-Term milestone.
+- The API + SSR implementation plan lives in `docs/design/api-ssr-plan.md` and should be consulted alongside this PRD when scoping the next milestone.
+- Operational and testing impacts are tracked in `docs/RUNBOOK.md` and `docs/TESTING.md`; update these alongside feature work.

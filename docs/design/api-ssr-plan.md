@@ -103,4 +103,5 @@
 
 ## References
 - `docs/EXPANSION.md` — Mid-term workstream alignment.
+- `docs/PRD.md` Section 15 — Roadmap links and stakeholder expectations.
 - `docs/TESTING.md` — Will be updated with API verification steps during implementation.

@@ -122,6 +122,7 @@ BITCOIN_RPC_TIMEOUT=3000
 │   ├── RUNBOOK.md
 │   ├── TESTING.md
 │   └── design
+│       ├── api-ssr-plan.md
 │       └── near-term-phase1.md
 └── test
     ├── integration
@@ -138,5 +139,6 @@ BITCOIN_RPC_TIMEOUT=3000
 - `/mempool` provides a live dashboard that refreshes via ZMQ when configured, falling back to TTL-based cache expiry otherwise.
 - Structured JSON logs (`pino`) capture request/RPC context; tune verbosity with `LOG_LEVEL`.
 - Routes render HTML responses; JSON APIs can still be layered on later if desired.
+- Mid-term API + SSR split planning lives in `docs/EXPANSION.md` (see Mid-Term) with implementation details in `docs/design/api-ssr-plan.md`.
 
 Refer to `docs/PRD.md` for product requirements, `docs/RUNBOOK.md` for operational guidance, and `docs/EXPANSION.md` for longer-term roadmap ideas.

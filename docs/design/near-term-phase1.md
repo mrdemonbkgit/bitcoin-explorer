@@ -156,6 +156,7 @@ Phase 1 covers discovery and design for the near-term expansion bundle (structur
 - Update RUNBOOK/README with new configuration guidance once implementation is underway.
 - Finalise regtest smoke test plan (see next section).
 
+- Transition follow-up work into the Mid-Term API + SSR plan documented in `docs/design/api-ssr-plan.md` (see `docs/EXPANSION.md`).
 ## Regtest Smoke Test Plan
 ### Objectives
 - Verify explorer behaviour end-to-end against a predictable Bitcoin Core regtest network during CI.

@@ -49,6 +49,8 @@ This guide captures manual and automated checks for the near-term feature bundle
   - Requires `bitcoind` in PATH.
   - Validates end-to-end flows (ZMQ, mempool updates, cache invalidation) against a temporary regtest node.
 
+- Mid-term API + SSR milestone test additions are outlined in `docs/design/api-ssr-plan.md` (see Testing Strategy).
+
 ## 5. Post-Deployment Checklist
 - Confirm `.env` includes the desired log level and ZMQ endpoints.
 - Run `npm run build` to create the deployment artifact.

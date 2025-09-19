@@ -84,5 +84,6 @@ npm run test:regtest
 - Rotate the RPC cookie if the Bitcoin Core user changes.
 - Exercise the regtest smoke suite (`npm run test:regtest`) after major upgrades to validate end-to-end behaviour.
 - Refer to `docs/TESTING.md` for a detailed manual/automated test checklist when preparing releases.
+- Coordinate mid-term roadmap work using `docs/EXPANSION.md` (Mid-Term milestone) and the implementation blueprint in `docs/design/api-ssr-plan.md`; update this runbook as deployment steps evolve.
 
 Refer to `docs/PRD.md` for feature scope and `AGENTS.md` for ownership roles.
