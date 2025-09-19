@@ -1,0 +1,78 @@
+{% extends "layout.njk" %}
+
+{% block title %}Mempool · Slim Bitcoin Explorer{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <h2>Mempool Overview</h2>
+    <p><strong>Transactions:</strong> {{ mempool.snapshot.txCount | default('n/a') }}</p>
+    <p><strong>Virtual Size:</strong> {{ mempool.snapshot.virtualSize | default('n/a') }}</p>
+    <p><strong>Median Fee Rate (sat/vB):</strong> {{ mempool.snapshot.medianFee | default('n/a') }}</p>
+    <p class="muted">Last updated: {{ mempool.snapshot.updatedAt | default('n/a') }}</p>
+  </div>
+
+  <div class="card">
+    <h2>Fee Histogram (sat/vB)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Range</th>
+          <th>Transactions</th>
+          <th>Virtual Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for bucket in mempool.snapshot.histogram %}
+          <tr>
+            <td>{{ bucket.range }}</td>
+            <td>{{ bucket.count }}</td>
+            <td>{{ bucket.vsize }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="3" class="muted">No histogram data available.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Recent Transactions (page {{ mempool.pagination.page }} of {{ mempool.pagination.totalPages }})</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>TxID</th>
+          <th>Fee Rate (sat/vB)</th>
+          <th>vSize</th>
+          <th>Age (s)</th>
+          <th>RBF</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tx in mempool.snapshot.recent %}
+          <tr>
+            <td><a href="/tx/{{ tx.txid }}"><code>{{ tx.txid }}</code></a></td>
+            <td>{{ tx.feerate | default('n/a') }}</td>
+            <td>{{ tx.vsize }}</td>
+            <td>{{ tx.ageSeconds | default('n/a') }}</td>
+            <td>{{ tx.isRbf and 'Yes' or 'No' }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5" class="muted">No transactions currently tracked.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination">
+      {% if mempool.pagination.page > 1 %}
+        <a href="?page={{ mempool.pagination.page - 1 }}">Previous</a>
+      {% endif %}
+      <span>Page {{ mempool.pagination.page }} / {{ mempool.pagination.totalPages }}</span>
+      {% if mempool.pagination.page < mempool.pagination.totalPages %}
+        <a href="?page={{ mempool.pagination.page + 1 }}">Next</a>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

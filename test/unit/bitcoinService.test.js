@@ -12,6 +12,7 @@ import {
   resolveSearchQuery,
   getTipSummary
 } from '../../src/services/bitcoinService.js';
+import { emit, CacheEvents } from '../../src/infra/cacheEvents.js';
 
 beforeEach(() => {
   rpcCallMock.mockReset();
@@ -124,5 +125,41 @@ describe('getTipSummary', () => {
     expect(summaryFirst.feeEstimates[6]).toBeCloseTo(0.0006, 10);
     expect(summarySecond).toEqual(summaryFirst);
     expect(rpcCallMock).toHaveBeenCalledTimes(5);
+  });
+});
+
+describe('cache invalidation events', () => {
+  it('clears tip cache after block notifications', async () => {
+    let height = 800000;
+    let bestblockhash = 'best-hash-old';
+
+    rpcCallMock.mockImplementation(async (method, params) => {
+      switch (method) {
+        case 'getblockchaininfo':
+          return { chain: 'main', blocks: height, bestblockhash };
+        case 'getmempoolinfo':
+          return { size: 512, bytes: 123456 };
+        case 'estimatesmartfee':
+          return { feerate: params[0] * 0.0001 };
+        default:
+          throw new Error(`Unexpected RPC call: ${method}`);
+      }
+    });
+
+    emit(CacheEvents.BLOCK_NEW, { hash: 'initial-reset' });
+
+    const summaryInitial = await getTipSummary();
+    const summaryCached = await getTipSummary();
+    expect(summaryInitial.bestHash).toBe('best-hash-old');
+    expect(summaryCached).toEqual(summaryInitial);
+    expect(rpcCallMock).toHaveBeenCalledTimes(5);
+
+    height = 800001;
+    bestblockhash = 'best-hash-new';
+    emit(CacheEvents.BLOCK_NEW, { hash: bestblockhash });
+
+    const summaryAfter = await getTipSummary();
+    expect(summaryAfter.bestHash).toBe('best-hash-new');
+    expect(rpcCallMock).toHaveBeenCalledTimes(10);
   });
 });

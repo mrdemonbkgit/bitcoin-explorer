@@ -29,6 +29,12 @@ CACHE_TTL_TX=600000
 BITCOIN_RPC_TIMEOUT=3000
 ```
 
+Additional environment controls:
+- `BITCOIN_ZMQ_BLOCK` / `BITCOIN_ZMQ_TX` — optional ZMQ endpoints for raw block/tx notifications to invalidate caches immediately.
+- `CACHE_TTL_MEMPOOL` — TTL (ms) for the mempool snapshot cache (default 5s).
+- `LOG_LEVEL`, `LOG_PRETTY` — structured logging verbosity and formatting.
+- `FEATURE_MEMPOOL_DASHBOARD` — disable the `/mempool` route when set to `false`.
+
 ## Deployment
 ```bash
 # install dependencies
@@ -39,9 +45,21 @@ npm run dev
 
 # start the service (production)
 npm start
+
+# optional: regression smoke suite (requires bitcoind binary)
+npm run test:regtest
 ```
 - `npm run build` packages the app into `dist/` with production dependencies (ready to rsync/deploy).
 - Add a process supervisor (systemd, pm2) when moving beyond manual runs.
+
+### ZMQ Configuration
+- Enable the following in `bitcoin.conf` for realtime cache invalidation:
+  ```ini
+  zmqpubrawblock=tcp://127.0.0.1:28332
+  zmqpubrawtx=tcp://127.0.0.1:28333
+  ```
+- Mirror the same URIs in the explorer `.env` (`BITCOIN_ZMQ_BLOCK`, `BITCOIN_ZMQ_TX`).
+
 
 ## Health Checks
 - HTTP GET `/` should return 200 with the latest chain tip and mempool figures.
@@ -49,8 +67,9 @@ npm start
 - Monitor logs for `503` responses; these indicate Bitcoin Core RPC connectivity issues.
 
 ## Logging
-- Console output (stdout/stderr) only. Pipe to journald/systemd for persistence.
-- TODO: integrate structured logging once the server implementation lands.
+- Logs emit JSON via `pino`; default level is `info`. Adjust with `LOG_LEVEL`.
+- Use `LOG_PRETTY=true` locally for human-friendly output.
+- Pipe stdout/stderr into journald/systemd or ship to your log aggregator.
 
 ## Incident Response
 1. Confirm Bitcoin Core RPC availability (`bitcoin-cli getblockcount`).
@@ -62,5 +81,6 @@ npm start
 - Apply OS patches monthly.
 - Update npm dependencies quarterly or when security advisories appear.
 - Rotate the RPC cookie if the Bitcoin Core user changes.
+- Exercise the regtest smoke suite (`npm run test:regtest`) after major upgrades to validate end-to-end behaviour.
 
 Refer to `docs/PRD.md` for feature scope and `AGENTS.md` for ownership roles.

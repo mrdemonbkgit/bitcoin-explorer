@@ -36,6 +36,7 @@ npm run build
 - `npm run lint` — ESLint baseline for Node 24 with `eslint-plugin-n`
 - `npm run typecheck` — TypeScript `--noEmit` with `checkJs` coverage
 - `npm run test` / `npm run coverage` — Vitest unit tests plus Supertest-backed integration tests
+- `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary)
 - `npm run build` — Creates `dist/` with runtime assets and production dependencies
 - `.github/workflows/ci.yml` — GitHub Actions workflow running lint → typecheck → coverage, audits prod deps, and uploads build + coverage artifacts
 
@@ -61,11 +62,18 @@ CACHE_TTL_TX=600000
 BITCOIN_RPC_TIMEOUT=3000
 ```
 
+### Realtime Updates & Logging
+- Set `BITCOIN_ZMQ_BLOCK` / `BITCOIN_ZMQ_TX` to enable sub-second cache busting via Bitcoin Core's ZMQ notifications (e.g., `tcp://127.0.0.1:28332`). Without these values the explorer falls back to TTL-based polling.
+- Tune cache behaviour with `CACHE_TTL_MEMPOOL` alongside existing tip/block/tx TTLs.
+- Structured logs emit JSON via `pino`; adjust `LOG_LEVEL` (`trace`→`fatal`) and toggle pretty printing with `LOG_PRETTY=true` during local development.
+- Toggle the mempool dashboard entirely via `FEATURE_MEMPOOL_DASHBOARD=false` if operators prefer to disable the route.
+
 ## Available Routes
 - `/` — Home dashboard with chain tip, mempool status, fee estimates, and search box
 - `/block/:id` — Block details by height or hash with paginated txid listing
 - `/tx/:txid` — Transaction view with inputs, outputs, totals, and RBF hint
 - `/search?q=` — Smart search that routes to the relevant block or transaction
+- `/mempool` — Live mempool dashboard with fee histogram and recent transactions (requires ZMQ for sub-second invalidation)
 
 ## Project Layout
 ```
@@ -99,4 +107,4 @@ BITCOIN_RPC_TIMEOUT=3000
 - Routes render HTML responses only; JSON APIs can be layered later if needed.
 - Caches refresh automatically on miss and expire based on the TTL values above.
 
-Refer to `docs/PRD.md` for product requirements and `docs/RUNBOOK.md` for operational guidance.
+Refer to `docs/PRD.md` for product requirements, `docs/RUNBOOK.md` for operational guidance, and `docs/EXPANSION.md` for longer-term roadmap ideas.

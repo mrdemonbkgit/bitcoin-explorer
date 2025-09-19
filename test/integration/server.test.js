@@ -9,12 +9,18 @@ const serviceMocks = vi.hoisted(() => ({
   resolveSearchQuery: vi.fn()
 }));
 
+const mempoolMock = vi.hoisted(() => ({
+  getMempoolViewModel: vi.fn()
+}));
+
 vi.mock('../../src/services/bitcoinService.js', () => serviceMocks);
+vi.mock('../../src/services/mempoolService.js', () => mempoolMock);
 
 import { createApp } from '../../src/server.js';
 
 beforeEach(() => {
   Object.values(serviceMocks).forEach((mock) => mock.mockReset());
+  mempoolMock.getMempoolViewModel.mockReset();
 });
 
 describe('server routes', () => {
@@ -119,5 +125,36 @@ describe('server routes', () => {
 
     expect(response.status).toBe(404);
     expect(response.text).toContain('missing block');
+  });
+
+  it('renders the mempool dashboard when enabled', async () => {
+    mempoolMock.getMempoolViewModel.mockResolvedValue({
+      snapshot: {
+        updatedAt: '2024-11-05T12:34:56.000Z',
+        txCount: 10,
+        virtualSize: 5000,
+        medianFee: 25,
+        histogram: [
+          { range: '0-1', count: 1, vsize: 200 },
+          { range: '1-5', count: 2, vsize: 400 }
+        ],
+        recent: [
+          { txid: 'tx123', feerate: 12.5, vsize: 200, ageSeconds: 30, isRbf: false }
+        ]
+      },
+      pagination: {
+        page: 1,
+        pageSize: 25,
+        totalPages: 1
+      }
+    });
+
+    const app = createApp();
+    const response = await request(app).get('/mempool');
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('Mempool Overview');
+    expect(response.text).toContain('tx123');
+    expect(mempoolMock.getMempoolViewModel).toHaveBeenCalledWith(1);
   });
 });

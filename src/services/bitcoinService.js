@@ -2,6 +2,7 @@ import { createCache } from '../cache.js';
 import { rpcCall } from '../rpc.js';
 import { config } from '../config.js';
 import { BadRequestError, NotFoundError } from '../errors.js';
+import { CacheEvents, subscribe } from '../infra/cacheEvents.js';
 
 const tipCache = createCache(config.cache.tip);
 const blockCache = createCache(config.cache.block);
@@ -10,6 +11,19 @@ const txCache = createCache(config.cache.tx);
 const BLOCK_PAGE_SIZE = 25;
 const HEX_64 = /^[0-9a-fA-F]{64}$/;
 const DIGITS = /^[0-9]+$/;
+
+subscribe(CacheEvents.BLOCK_NEW, ({ hash }) => {
+  tipCache.clear();
+  if (typeof hash === 'string' && hash.length > 0) {
+    blockCache.delete(hash.toLowerCase());
+  }
+});
+
+subscribe(CacheEvents.TX_NEW, ({ txid }) => {
+  if (typeof txid === 'string' && txid.length > 0) {
+    txCache.delete(txid.toLowerCase());
+  }
+});
 
 function resolveVinValue(vin) {
   if (!vin || vin.coinbase) {

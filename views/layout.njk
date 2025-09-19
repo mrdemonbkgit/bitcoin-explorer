@@ -23,12 +23,20 @@
     form.search input[type="text"] { flex: 1; min-width: 220px; padding: 10px 12px; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 8px; background: rgba(15, 23, 42, 0.8); color: inherit; }
     form.search button { padding: 10px 16px; border-radius: 8px; border: none; background: #38bdf8; color: #0f172a; font-weight: 600; cursor: pointer; }
     form.search button:hover { background: #0ea5e9; }
+    nav.nav { display: flex; gap: 16px; margin-top: 12px; }
+    nav.nav a { font-weight: 600; }
   </style>
 </head>
 <body>
   <header>
     <h1><a href="/">Slim Bitcoin Explorer</a></h1>
     <p class="muted">Self-hosted, LAN-only explorer backed by Bitcoin Core JSON-RPC.</p>
+    <nav class="nav">
+      <a href="/">Home</a>
+      {% if features.mempoolDashboard %}
+        <a href="/mempool">Mempool</a>
+      {% endif %}
+    </nav>
   </header>
   <main>
     {% block content %}{% endblock %}

@@ -4,12 +4,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { AppError, NotFoundError } from './errors.js';
+import { requestLogger } from './middleware/requestLogger.js';
+import { getLogger } from './infra/logger.js';
+import { startZmqListener } from './infra/zmqListener.js';
 import {
   getTipSummary,
   getBlockViewModel,
   getTransactionViewModel,
   resolveSearchQuery
 } from './services/bitcoinService.js';
+import { getMempoolViewModel } from './services/mempoolService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +28,7 @@ export function createApp() {
   app.disable('x-powered-by');
 
   app.use(express.urlencoded({ extended: false }));
+  app.use(requestLogger());
 
   nunjucks.configure(viewsPath, {
     autoescape: true,
@@ -33,6 +38,7 @@ export function createApp() {
   });
 
   app.set('view engine', 'njk');
+  app.locals.features = config.features;
 
   app.get('/', asyncHandler(async (req, res) => {
     const summary = await getTipSummary();
@@ -61,14 +67,45 @@ export function createApp() {
     throw new NotFoundError('No matching resource');
   }));
 
+  if (config.features.mempoolDashboard) {
+    app.get('/mempool', asyncHandler(async (req, res) => {
+      const page = Number(req.query.page) || 1;
+      const mempool = await getMempoolViewModel(page);
+      res.render('mempool.njk', { mempool });
+    }));
+  }
+
   app.use((req, res, next) => {
     next(new NotFoundError('Page not found'));
   });
 
   app.use((error, req, res, _next) => {
     const status = error instanceof AppError ? error.statusCode : 500;
-    if (status === 500) {
-      console.error(error);
+    const logger = req?.log ?? getLogger();
+
+    const logContext = {
+      status,
+      requestId: res.locals?.requestId,
+      route: req.originalUrl || req.url,
+      method: req.method
+    };
+
+    if (status >= 500) {
+      logger.error({
+        context: {
+          ...logContext,
+          event: 'request.exception'
+        },
+        err: error
+      }, 'request.exception');
+    } else {
+      logger.warn({
+        context: {
+          ...logContext,
+          event: 'request.error'
+        },
+        err: error
+      }, 'request.error');
     }
 
     res.status(status);
@@ -83,8 +120,67 @@ export function createApp() {
 
 function startServer() {
   const app = createApp();
-  app.listen(config.app.port, config.app.bind, () => {
-    console.log(`Explorer listening on ${config.app.bind}:${config.app.port}`);
+  const logger = getLogger();
+  let stopZmqListener = async () => {};
+  let zmqStartPromise = null;
+
+  if (config.zmq.blockEndpoint || config.zmq.txEndpoint) {
+    zmqStartPromise = startZmqListener({
+      blockEndpoint: config.zmq.blockEndpoint,
+      txEndpoint: config.zmq.txEndpoint
+    })
+      .then((stop) => {
+        stopZmqListener = stop ?? stopZmqListener;
+        return stop;
+      })
+      .catch((error) => {
+        logger.error({
+          context: {
+            zmq: {
+              event: 'startup.error',
+              blockEndpoint: config.zmq.blockEndpoint,
+              txEndpoint: config.zmq.txEndpoint
+            }
+          },
+          err: error
+        }, 'zmq.startup.error');
+        return null;
+      });
+  }
+
+  const server = app.listen(config.app.port, config.app.bind, () => {
+    logger.info({
+      context: {
+        event: 'server.start',
+        bind: config.app.bind,
+        port: config.app.port
+      }
+    }, `Explorer listening on ${config.app.bind}:${config.app.port}`);
+  });
+
+  const shutdown = async (signal) => {
+    try {
+      logger.info({ context: { event: 'server.shutdown', signal } }, 'server.shutdown');
+      server.close();
+      if (!stopZmqListener && zmqStartPromise) {
+        const resolved = await zmqStartPromise;
+        if (typeof resolved === 'function') {
+          await resolved();
+        }
+      } else if (stopZmqListener) {
+        await stopZmqListener();
+      }
+    } catch (error) {
+      logger.error({ context: { event: 'server.shutdown.error' }, err: error }, 'server.shutdown.error');
+    } finally {
+      process.exitCode = 0;
+    }
+  };
+
+  ['SIGINT', 'SIGTERM'].forEach((signal) => {
+    process.once(signal, () => {
+      shutdown(signal);
+    });
   });
 }
 

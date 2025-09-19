@@ -4,6 +4,7 @@ import { Agent as HttpAgent } from 'node:http';
 import { Agent as HttpsAgent } from 'node:https';
 import { config } from './config.js';
 import { BadRequestError, NotFoundError, ServiceUnavailableError } from './errors.js';
+import { getRequestLogger } from './infra/logger.js';
 
 const httpAgent = new HttpAgent({ keepAlive: true, maxSockets: 4 });
 const httpsAgent = new HttpsAgent({ keepAlive: true, maxSockets: 4 });
@@ -80,6 +81,8 @@ function mapAxiosError(error) {
 }
 
 export async function rpcCall(method, params = []) {
+  const logger = getRequestLogger();
+  const startedAt = process.hrtime.bigint();
   try {
     const { data } = await client.post('/', {
       jsonrpc: '2.0',
@@ -91,18 +94,55 @@ export async function rpcCall(method, params = []) {
     if (data.error) {
       throw mapRpcJsonError(data.error);
     }
-
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    logger.debug({
+      context: {
+        rpc: {
+          method,
+          durationMs
+        }
+      }
+    }, 'rpc.success');
     return data.result;
   } catch (error) {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    const context = {
+      rpc: {
+        method,
+        durationMs
+      }
+    };
+    const logError = () => {
+      logger.error({
+        context,
+        err: error
+      }, 'rpc.failure');
+    };
+    const logWarn = () => {
+      logger.warn({
+        context,
+        err: error
+      }, 'rpc.warning');
+    };
     if (error instanceof BadRequestError || error instanceof NotFoundError || error instanceof ServiceUnavailableError) {
+      if (error instanceof ServiceUnavailableError) {
+        logError();
+      } else {
+        logWarn();
+      }
       throw error;
     }
 
     if (error.response?.status === 401 && config.rpc.cookiePath) {
       await refreshClient();
+      logger.warn({
+        context,
+        err: error
+      }, 'rpc.auth.retry');
       return rpcCall(method, params);
     }
-
-    throw mapAxiosError(error);
+    const mapped = mapAxiosError(error);
+    logError();
+    throw mapped;
   }
 }

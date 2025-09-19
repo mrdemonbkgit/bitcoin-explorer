@@ -198,3 +198,14 @@ http://<NODE_LAN_IP>:28765/   # e.g., http://192.168.1.213:28765/
 - Mempool page (`getrawmempool true`) and optional SSE.
 - Address/descriptor pages (would require light indexing).
 - Optional Nginx + auth, or systemd resource caps (if desired later).
+
+## 14) Near-Term Expansion Roadmap
+To support the upcoming feature bundle (see `docs/EXPANSION.md`), the next iteration will focus on:
+1. **Structured logging** — JSON-formatted logs with request/RPC metadata for easier diagnostics.
+2. **ZMQ cache busting** — optional subscriber that invalidates tip/block/tx caches when new `rawblock`/`rawtx` events arrive.
+3. **Mempool dashboard** — dedicated route showing live mempool stats, fee histograms, and recent transactions.
+4. **Regtest smoke tests** — automated CI workflow that spins up `bitcoind -regtest`, mines blocks, broadcasts tx, and validates explorer behaviour.
+
+These enhancements remain LAN-first and additive; operators can enable them incrementally via new configuration flags documented in `docs/RUNBOOK.md` once implemented.
+
+**Status (current build):** All four items above are now implemented. Structured logs ship via `pino`, `/mempool` exposes live data with optional ZMQ invalidation, and `npm run test:regtest` exercises an automated regtest smoke suite.

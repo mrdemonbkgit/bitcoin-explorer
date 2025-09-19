@@ -7,3 +7,7 @@ process.env.CACHE_TTL_TIP = process.env.CACHE_TTL_TIP ?? '5000';
 process.env.CACHE_TTL_BLOCK = process.env.CACHE_TTL_BLOCK ?? '600000';
 process.env.CACHE_TTL_TX = process.env.CACHE_TTL_TX ?? '600000';
 process.env.BITCOIN_RPC_TIMEOUT = process.env.BITCOIN_RPC_TIMEOUT ?? '3000';
+process.env.CACHE_TTL_MEMPOOL = process.env.CACHE_TTL_MEMPOOL ?? '5000';
+process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'error';
+process.env.LOG_PRETTY = process.env.LOG_PRETTY ?? 'false';
+process.env.FEATURE_MEMPOOL_DASHBOARD = process.env.FEATURE_MEMPOOL_DASHBOARD ?? 'true';
