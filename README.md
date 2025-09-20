@@ -55,7 +55,10 @@ npm run build
 - `npm run test` / `npm run coverage` — Vitest unit tests plus Supertest-backed integration tests
 - `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary). Set `REGTEST_SCRAPE_METRICS=true` to scrape `/metrics`, `REGTEST_ADDRESS_CHECK=true` to exercise the address/xpub explorer, and interrupt/restart the app mid-sync to confirm checkpoints resume cleanly.
 - `npm run build` — Creates `dist/` with runtime assets and production dependencies
+- `npm run bench:address` — Seeds a regtest node and captures LevelDB ingest/read metrics (writes `bench/current-results.json`)
+- `npm run bench:compare` — Compares the latest metrics against the checked-in baseline (`bench/leveldb-results.json`)
 - `.github/workflows/ci.yml` — GitHub Actions workflow running lint → typecheck → coverage, audits prod deps, and uploads build + coverage artifacts
+- Scheduled CI also runs `benchmark-indexer`, which executes the benchmark harness nightly and fails if ingest or read latencies exceed the configured thresholds; grab the `address-indexer-benchmark` artifact on GitHub to inspect the raw numbers.
 - See `docs/TESTING.md` for a step-by-step testing checklist covering structured logging, ZMQ cache busting, the mempool dashboard, and the regtest smoke suite.
 
 The service listens on the host/port defined in `.env` (`0.0.0.0:28765` by default). Bitcoin Core must be reachable at the configured RPC URL with cookie authentication enabled.

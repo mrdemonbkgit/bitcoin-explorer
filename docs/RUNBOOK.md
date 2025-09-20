@@ -111,6 +111,7 @@ npm run test:regtest
 - Update npm dependencies quarterly or when security advisories appear.
 - Rotate the RPC cookie if the Bitcoin Core user changes.
 - Exercise the regtest smoke suite (`npm run test:regtest`) after major upgrades to validate end-to-end behaviour.
+- Run the LevelDB benchmark guardrail (`npm run bench:address && npm run bench:compare`) when touching the address explorer; CI also executes this nightly (`benchmark-indexer` job) and uploads the `address-indexer-benchmark` artifact with the latest metrics.
 - Refer to `docs/TESTING.md` for a detailed manual/automated test checklist when preparing releases.
 - Coordinate mid-term roadmap work using `docs/EXPANSION.md` (Mid-Term milestone) and the implementation blueprint in `docs/design/api-ssr-plan.md`; update this runbook as deployment steps evolve.
 

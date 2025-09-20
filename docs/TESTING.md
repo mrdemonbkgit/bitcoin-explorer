@@ -51,6 +51,10 @@ This guide captures manual and automated checks for the near-term feature bundle
   - Optional toggles:
     - `REGTEST_SCRAPE_METRICS=true` — scrape `/metrics` during the run.
     - `REGTEST_ADDRESS_CHECK=true` — enable the address/xpub explorer, wait for indexer sync, and assert `/address` + `/api/v1/address` + `/xpub` responses.
+- **Benchmark Guardrail:**
+  - `npm run bench:address` — Seeds a deterministic regtest dataset, runs the LevelDB indexer benchmark harness, and writes results to `bench/current-results.json`.
+  - `npm run bench:compare` — Compares the latest metrics against the baseline (`bench/leveldb-results.json`) and fails if ingest/read deltas exceed configured tolerances.
+  - GitHub Actions executes the same commands nightly in the `benchmark-indexer` job (see `address-indexer-benchmark` artifact for raw JSON).
 
 - Mid-term API + SSR milestone test additions are outlined in `docs/design/api-ssr-plan.md` (see Testing Strategy).
 
