@@ -56,7 +56,7 @@ npm run build
 - `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary). Set `REGTEST_SCRAPE_METRICS=true` to scrape `/metrics`, `REGTEST_ADDRESS_CHECK=true` to exercise the address/xpub explorer, and interrupt/restart the app mid-sync to confirm checkpoints resume cleanly.
 - `npm run build` — Creates `dist/` with runtime assets and production dependencies
 - `npm run bench:address` — Seeds a regtest node and captures LevelDB ingest/read metrics (writes `bench/current-results.json`)
-- `npm run bench:compare` — Compares the latest metrics against the checked-in baseline (`bench/leveldb-results.json`)
+- `npm run bench:compare` — Compares the latest metrics against the checked-in baseline (`bench/leveldb-results.json`). Tune relative thresholds with `BENCH_MAX_*_DELTA` or add `BENCH_MAX_*_ABS` (milliseconds) to tolerate tiny absolute swings during CI runs.
 - `.github/workflows/ci.yml` — GitHub Actions workflow running lint → typecheck → coverage, audits prod deps, and uploads build + coverage artifacts
 - Scheduled CI also runs `benchmark-indexer`, which executes the benchmark harness nightly and fails if ingest or read latencies exceed the configured thresholds; grab the `address-indexer-benchmark` artifact on GitHub to inspect the raw numbers.
 - See `docs/TESTING.md` for a step-by-step testing checklist covering structured logging, ZMQ cache busting, the mempool dashboard, and the regtest smoke suite.
