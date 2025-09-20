@@ -238,13 +238,28 @@ async function main() {
       return mempoolApiAfter.status === 200 && !stillPresent;
     }, { errorMessage: 'Transaction still present in mempool API snapshot after confirmation' });
 
+    let tipAfterHeight = tipHeight;
     await waitFor(async () => {
       const tipAfterResponse = await agent.get('/api/v1/tip');
-      const tipAfterHeight = tipAfterResponse.body?.data?.height;
+      tipAfterHeight = tipAfterResponse.body?.data?.height;
       return tipAfterResponse.status === 200 && typeof tipAfterHeight === 'number' && tipAfterHeight > tipHeight;
     }, { errorMessage: 'Tip API did not reflect new block height' });
 
     if (addressCheckEnabled) {
+      const { getAddressIndexer } = await import('../../src/infra/addressIndexer.js');
+
+      await waitFor(async () => {
+        const indexer = getAddressIndexer();
+        if (!indexer) {
+          return false;
+        }
+        const lastProcessed = Number(await indexer.getMetadata('last_processed_height', -1));
+        return Number.isFinite(lastProcessed) && lastProcessed >= tipAfterHeight;
+      }, {
+        timeoutMs: 60_000,
+        errorMessage: 'Address indexer did not catch up to chain tip'
+      });
+
       await waitFor(async () => {
         const addressResponse = await agent.get(`/api/v1/address/${recipient}`);
         const balance = addressResponse.body?.data?.summary?.balanceSat;
