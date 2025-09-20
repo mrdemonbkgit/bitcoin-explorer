@@ -266,22 +266,39 @@ function startServer() {
       });
   }
 
+  let shuttingDown = false;
+
+  const closeHttpServer = () => new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+  });
+
   const shutdown = async (signal) => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
     try {
       logger.info({ context: { event: 'server.shutdown', signal } }, 'server.shutdown');
-      server.close();
+      await closeHttpServer();
       await stopWebsocketGateway();
-      if (!stopZmqListener && zmqStartPromise) {
+      if (stopZmqListener) {
+        await stopZmqListener();
+      } else if (zmqStartPromise) {
         const resolved = await zmqStartPromise;
         if (typeof resolved === 'function') {
           await resolved();
         }
-      } else if (stopZmqListener) {
-        await stopZmqListener();
       }
       if (config.address.enabled) {
         stopAddressIndexer();
       }
+      logger.info({ context: { event: 'server.shutdown.complete', signal } }, 'server.shutdown.complete');
     } catch (error) {
       logger.error({ context: { event: 'server.shutdown.error' }, err: error }, 'server.shutdown.error');
     } finally {
