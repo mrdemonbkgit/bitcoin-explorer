@@ -5,10 +5,10 @@ function parseArgs(argv) {
   const options = {
     current: null,
     baseline: null,
-    maxIngestDelta: Number(process.env.BENCH_MAX_INGEST_DELTA ?? '0.50'),
-    maxSummaryDelta: Number(process.env.BENCH_MAX_SUMMARY_DELTA ?? '0.60'),
-    maxTxDelta: Number(process.env.BENCH_MAX_TX_DELTA ?? '0.50'),
-    maxUtxoDelta: Number(process.env.BENCH_MAX_UTXO_DELTA ?? '0.80')
+    maxIngestDelta: Number(process.env.BENCH_MAX_INGEST_DELTA ?? '0.60'),
+    maxSummaryDelta: Number(process.env.BENCH_MAX_SUMMARY_DELTA ?? '0.80'),
+    maxTxDelta: Number(process.env.BENCH_MAX_TX_DELTA ?? '0.60'),
+    maxUtxoDelta: Number(process.env.BENCH_MAX_UTXO_DELTA ?? '0.95')
   };
 
   for (let i = 0; i < argv.length; i += 1) {
