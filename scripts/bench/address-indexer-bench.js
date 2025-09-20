@@ -5,6 +5,12 @@ import { AddressIndexer } from '../../src/infra/addressIndexer.js';
 import { getLogger } from '../../src/infra/logger.js';
 import { rpcCall } from '../../src/rpc.js';
 
+/** @type {string[] | null} */
+const PRESEEDED_ADDRESSES = process.env.BENCH_PRESEEDED_ADDRESSES
+  ? JSON.parse(process.env.BENCH_PRESEEDED_ADDRESSES)
+  : null;
+const BACKEND_LABEL = process.env.BENCH_BACKEND ?? 'leveldb';
+
 /**
  * @typedef {Object} BenchOptions
  * @property {number} sample
@@ -41,6 +47,9 @@ function parseArgs(argv) {
 }
 
 async function collectSampleAddresses(indexer, sampleSize) {
+  if (Array.isArray(PRESEEDED_ADDRESSES) && PRESEEDED_ADDRESSES.length > 0) {
+    return PRESEEDED_ADDRESSES.slice(0, sampleSize);
+  }
   if (!indexer.db) {
     return [];
   }
@@ -137,10 +146,15 @@ async function run() {
     addressesTested: 0
   };
 
-  await indexer.shutdown();
+  const legacyIndexer = /** @type {any} */ (indexer);
+  if (typeof legacyIndexer.shutdown === 'function') {
+    await legacyIndexer.shutdown();
+  } else if (typeof legacyIndexer.close === 'function') {
+    await legacyIndexer.close();
+  }
 
   const result = {
-    backend: 'leveldb',
+    backend: BACKEND_LABEL,
     chainHeight: bestHeight,
     ingestMs,
     ingestSeconds: ingestMs / 1000,

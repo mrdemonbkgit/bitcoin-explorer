@@ -10,12 +10,13 @@ const BITCOIND_PATH = process.env.BITCOIND_PATH || 'bitcoind';
 const RPC_PORT = Number(process.env.BENCH_RPC_PORT || 18443);
 const RPC_URL = `http://127.0.0.1:${RPC_PORT}`;
 const SAMPLE_SIZE = Number(process.env.BENCH_SAMPLE_SIZE || 50);
-const WARMUPS = Number(process.env.BENCH_WARMUPS || 1);
+const WARMUPS = Number(process.env.BENCH_WARMUPS || 2);
 const ITERATIONS = Number(process.env.BENCH_ITERATIONS || 3);
 const OUTPUT_PATH = process.env.BENCH_OUTPUT || 'bench/current-results.json';
 const INDEX_PATH = process.env.BENCH_INDEX_PATH || 'bench/ci-index';
 const MAX_TX = Number(process.env.BENCH_TX_COUNT || 600);
 const SEND_BATCH_CONFIRM_INTERVAL = Number(process.env.BENCH_CONFIRM_EVERY || 20);
+const FINAL_CONFIRMATIONS = Number(process.env.BENCH_FINAL_CONFIRMATIONS || 86);
 
 /**
  * @typedef {Error & { code?: number }} RpcError
@@ -131,11 +132,11 @@ async function seedChain(auth) {
   }
 
   // Final confirmations to settle transactions.
-  await rpc(auth, 'generatetoaddress', [50, miningAddress]);
+  await rpc(auth, 'generatetoaddress', [FINAL_CONFIRMATIONS, miningAddress]);
   return recipients;
 }
 
-async function runBenchmark(envOverrides = {}) {
+async function runBenchmark(envOverrides = {}, preseededAddresses = []) {
   const args = [
     'scripts/bench/address-indexer-bench.js',
     '--sample', String(SAMPLE_SIZE),
@@ -148,7 +149,9 @@ async function runBenchmark(envOverrides = {}) {
     stdio: 'inherit',
     env: {
       ...process.env,
-      ...envOverrides
+      ...envOverrides,
+      BENCH_PRESEEDED_ADDRESSES: JSON.stringify(preseededAddresses),
+      BENCH_BACKEND: envOverrides.BENCH_BACKEND ?? 'leveldb'
     }
   });
 
@@ -198,7 +201,7 @@ async function main() {
     await waitForFile(cookiePath);
     auth = await readCookie(cookiePath);
     await waitForRpc(auth);
-    await seedChain(auth);
+    const recipients = await seedChain(auth);
 
     const benchmarkEnv = {
       BITCOIN_RPC_URL: RPC_URL,
@@ -206,7 +209,8 @@ async function main() {
       BITCOIN_RPC_TIMEOUT: '5000',
       FEATURE_ADDRESS_EXPLORER: 'true',
       ADDRESS_INDEX_PATH: INDEX_PATH,
-      LOG_LEVEL: process.env.LOG_LEVEL ?? 'error'
+      LOG_LEVEL: process.env.LOG_LEVEL ?? 'error',
+      BENCH_BACKEND: process.env.BENCH_BACKEND ?? 'leveldb'
     };
 
     if (existsSync(INDEX_PATH)) {
@@ -214,7 +218,7 @@ async function main() {
     }
 
     log('Running benchmark harness');
-    await runBenchmark(benchmarkEnv);
+    await runBenchmark(benchmarkEnv, recipients);
 
     log('Stopping bitcoind');
     await rpc(auth, 'stop');

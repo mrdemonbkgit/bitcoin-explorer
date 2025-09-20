@@ -1,16 +1,16 @@
 {
   "backend": "sqlite",
   "chainHeight": 226,
-  "ingestMs": 1859.904415,
-  "ingestSeconds": 1.859904415,
+  "ingestMs": 2084.509927,
+  "ingestSeconds": 2.084509927,
   "sampleCount": 50,
   "iterations": 3,
   "reads": {
-    "summaryMs": 8.319122000000334,
-    "transactionsMs": 15.14685899999995,
-    "utxosMs": 3.488922999999886,
-    "summaryAvgMs": 0.05546081333333556,
-    "transactionsAvgMs": 0.10097905999999966,
-    "utxosAvgMs": 0.023259486666665906
+    "summaryMs": 7.638459999999668,
+    "transactionsMs": 22.542227999999795,
+    "utxosMs": 3.517891000000418,
+    "summaryAvgMs": 0.050923066666664456,
+    "transactionsAvgMs": 0.15028151999999864,
+    "utxosAvgMs": 0.023452606666669453
   }
 }

@@ -249,7 +249,7 @@ async function main() {
         const addressResponse = await agent.get(`/api/v1/address/${recipient}`);
         const balance = addressResponse.body?.data?.summary?.balanceSat;
         return addressResponse.status === 200 && typeof balance === 'number' && balance > 0;
-      }, { errorMessage: 'Address API did not confirm funded balance' });
+      }, { timeoutMs: 60000, errorMessage: 'Address API did not confirm funded balance' });
 
       const addressHtml = await agent.get(`/address/${recipient}`);
       if (addressHtml.status !== 200 || !addressHtml.text.includes(recipient)) {

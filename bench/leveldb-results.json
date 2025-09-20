@@ -1,16 +1,16 @@
 {
   "backend": "leveldb",
   "chainHeight": 226,
-  "ingestMs": 1641.5961109999998,
-  "ingestSeconds": 1.641596111,
+  "ingestMs": 2161.6561810000003,
+  "ingestSeconds": 2.161656181,
   "sampleCount": 50,
   "iterations": 3,
   "reads": {
-    "summaryMs": 3.5699050000007446,
-    "transactionsMs": 20.975349999999253,
-    "utxosMs": 13.04442199999994,
-    "summaryAvgMs": 0.02379936666667163,
-    "transactionsAvgMs": 0.1398356666666617,
-    "utxosAvgMs": 0.08696281333333293
+    "summaryMs": 3.7136670000004415,
+    "transactionsMs": 35.21790899999996,
+    "utxosMs": 15.504313999999795,
+    "summaryAvgMs": 0.024757780000002942,
+    "transactionsAvgMs": 0.23478605999999977,
+    "utxosAvgMs": 0.10336209333333196
   }
 }

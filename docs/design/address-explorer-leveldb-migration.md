@@ -69,13 +69,13 @@
 
 | Backend | Ingest (s) | Address summary avg (ms) | Tx history avg (ms) | UTXO lookup avg (ms) |
 | --- | --- | --- | --- | --- |
-| LevelDB | 1.64 | 0.024 | 0.140 | 0.087 |
-| SQLite | 1.86 | 0.055 | 0.101 | 0.023 |
+| LevelDB | 2.16 | 0.025 | 0.235 | 0.103 |
+| SQLite | 2.08 | 0.051 | 0.150 | 0.023 |
 
 - Findings:
-  - LevelDB initial sync finished ~12% faster (1.64s vs 1.86s) on the 226-block snapshot.
-  - Keyed lookups (`getAddressSummary`) are ~2.3× faster with LevelDB because summaries live in single-key JSON documents.
-  - Iteration-heavy reads (transaction history, UTXO listing) remain sub-millisecond, but SQLite’s indexed `ORDER BY` is still quicker; future optimisations could materialise sorted LevelDB prefixes or memoise hot UTXO lists.
+  - LevelDB initial ingest sits within ~4% of the SQLite baseline on the current 226-block dataset (2.16s vs 2.08s).
+  - Keyed lookups (`getAddressSummary`) remain ~2× faster with LevelDB because summaries live in single-key JSON documents derived from Level prefixes.
+  - Iteration-heavy reads (transaction history, UTXO listing) still favour SQLite’s indexed queries; LevelDB would benefit from sorted sublevel prefixes or cached aggregates to close the gap.
 
 ## Documentation & Rollout
 - Update design docs (this plan + `docs/design/address-explorer.md`) with Task Tracker entries for migration milestones.
