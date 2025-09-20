@@ -176,7 +176,7 @@ async function main() {
     process.env.METRICS_INCLUDE_DEFAULT = process.env.METRICS_INCLUDE_DEFAULT ?? 'false';
     if (addressCheckEnabled) {
       process.env.FEATURE_ADDRESS_EXPLORER = 'true';
-      process.env.ADDRESS_INDEX_PATH = process.env.ADDRESS_INDEX_PATH ?? path.join(dataDir, 'address-index');
+      process.env.ADDRESS_INDEX_PATH = path.join(dataDir, 'address-index');
       process.env.ADDRESS_XPUB_GAP_LIMIT = process.env.ADDRESS_XPUB_GAP_LIMIT ?? '20';
     }
 
