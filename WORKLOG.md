@@ -35,7 +35,7 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
 ## 2025-09-20
 ### Done
 - chore(release): ship 0.2.0 milestone bundle — (Tag v0.2.0)
-  - Context: Tagged the API/metrics/websocket/address-explorer milestone, updated CHANGELOG/WORKLOG, executed `npm run ci` and `npm run build` ahead of publishing artifacts.
+  - Context: Tagged the API/metrics/websocket/address-explorer milestone, aligned roadmap (`docs/EXPANSION.md`), updated CHANGELOG/WORKLOG, executed `npm run ci` and `npm run build` ahead of publishing artifacts.
 - fix(bench): add absolute tolerance thresholds to compare guard — (Commit 3c32c4d)
   - Context: `scripts/bench/compare-results.js` now supports millisecond absolute tolerances so nightly LevelDB benchmarks ignore tiny variance; README/TESTING mention the new knobs.
 - test(regtest): stabilize address explorer coverage — (Commits 81cbb4c, 1d8ca4f, 4bb667c)

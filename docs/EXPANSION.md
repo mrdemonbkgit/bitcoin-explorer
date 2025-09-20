@@ -12,24 +12,24 @@ This document captures ambitious growth directions for the explorer so we can pl
 ## Workstreams & Ideas
 
 ### 1. Feature Surfaces
-- **Address & Xpub Views**: allow lookup of UTXOs, balances, and transaction history; requires lightweight indexing layer or batched RPC aggregation.
+- **Address & Xpub Views** ✅ — Shipped in v0.2.0 with the LevelDB-backed indexer powering balance/history lookups (see `docs/design/address-explorer.md`).
 - **Mempool Intelligence**: dedicated page with live fee histograms, inbound tx stream, and pinning of interesting transactions.
 - **Fee & Chain Analytics**: charts for confirmation time, fee rate trends, difficulty and supply metrics.
 - **Advanced Search**: fuzzy/partial-matching, entity tagging, and contextual search results (confirmations, related blocks/tx).
 
 ### 2. Architecture & Services
-- **API + SSR Split**: expose a JSON API consumed by both the server-rendered views and future clients; enforce typed contracts.
-- **Realtime Layer**: integrate ZMQ or WebSockets for block/tx notifications and cache invalidation.
+- **API + SSR Split** ✅ — JSON API now backs SSR/pages and external clients (see `docs/design/api-ssr-plan.md`, released in v0.2.0).
+- **Realtime Layer** ✅ — ZMQ-driven cache busting and LAN-only WebSocket notifications are live (see `docs/design/websocket-updates.md`).
 - **Background Schedulers**: pre-warm caches, detect reorgs, emit alerts, and manage derived datasets without blocking HTTP handlers.
 - **Plugin System**: a module loader that lets operators drop in bespoke features (e.g., Lightning channel explorer) without patching core code.
 
 ### 3. Data & Storage Strategy
-- **Local Indexing**: embed LevelDB/SQLite/Badger to persist address graphs, fee buckets, or historical snapshots while keeping Core authoritative.
+- **Local Indexing** ✅ — LevelDB address/xpub store ships in v0.2.0; expand to other datasets as needed.
 - **Historical Aggregations**: maintain rolling statistics (mempool depth, chain tip velocity) with TTL rules to prevent unbounded growth.
 - **Data Lifecycle**: design backup, pruning, and migration flows for any persisted artifacts.
 
 ### 4. Operations & Observability
-- **Metrics & Tracing**: ship OpenTelemetry spans, structured logs, and Prometheus-compatible metrics (RPC latency, cache hit ratio, render time). See `docs/design/metrics-exporter.md` for the dedicated metrics exporter implementation plan.
+- **Metrics & Tracing** ✅ (metrics) — Prometheus exporter and structured logging shipped in v0.2.0; tracing/Otel remains open. See `docs/design/metrics-exporter.md`.
 - **Health & Diagnostics**: dedicated status endpoint, configuration dump (redacting secrets), and self-check routines.
 - **Deployment Profiles**: container images, IaC templates, and scripted provisioning for dev/staging/prod with smoke tests in CI/regtest.
 - **Multi-Core Awareness**: support failover or load balancing across archival/pruned nodes with heartbeat checks.
@@ -46,7 +46,7 @@ This document captures ambitious growth directions for the explorer so we can pl
 
 ## Milestone Sketch
 - **Near-Term (Quarter 1)** ✅ Completed — ZMQ cache busting, mempool dashboard, structured logging, and CI smoke tests are live.
-- **Mid-Term (Quarter 2)** ▶ In progress — API surface (see `docs/design/api-ssr-plan.md`), address/xpub explorer with local index (plan: `docs/design/address-explorer.md`), WebSocket notifications (plan: `docs/design/websocket-updates.md`), metrics exporter (plan: `docs/design/metrics-exporter.md`); coordinate scope with `docs/PRD.md` Section 15 and keep `docs/RUNBOOK.md`/`docs/TESTING.md` updated as milestones land.
+- **Mid-Term (Quarter 2)** ✅ Completed — API surface, LevelDB-backed address/xpub explorer, LAN-only WebSocket notifications, and Prometheus metrics exporter shipped in release v0.2.0 (2025-09-20) with supporting docs updated (`docs/design/api-ssr-plan.md`, `docs/design/address-explorer.md`, `docs/design/websocket-updates.md`, `docs/design/metrics-exporter.md`).
 - **Long-Term (Quarter 3+)**: pluggable modules, analytics warehouse, multi-node awareness, optional authZ/authN stack.
 
 ### Near-Term Bundle Implementation Plan
