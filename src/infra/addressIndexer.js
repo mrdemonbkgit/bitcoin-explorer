@@ -5,6 +5,7 @@ import { Level } from 'level';
 import { config } from '../config.js';
 import { getLogger } from './logger.js';
 import { rpcCall } from '../rpc.js';
+import { NotFoundError } from '../errors.js';
 import { CacheEvents, subscribe } from './cacheEvents.js';
 
 const SATOSHIS_PER_BTC = 100_000_000;
@@ -60,6 +61,37 @@ const DIRECTION_OUT = 'out';
  */
 
 let singletonIndexer = null;
+
+async function fetchBlockWithRetry(hash, logger, { maxAttempts = 15, baseDelayMs = 200 } = {}) {
+  let attempt = 0;
+  let lastError = null;
+  while (attempt < maxAttempts) {
+    try {
+      return await rpcCall('getblock', [hash, 2]);
+    } catch (error) {
+      if (!(error instanceof NotFoundError)) {
+        throw error;
+      }
+      lastError = error;
+      attempt += 1;
+      if (attempt >= maxAttempts) {
+        break;
+      }
+      const backoffMs = baseDelayMs * attempt;
+      logger.debug({
+        context: {
+          event: 'addressIndexer.block.retry',
+          hash,
+          attempt,
+          delayMs: backoffMs
+        }
+      }, 'Retrying getblock after not found');
+      await delay(backoffMs);
+    }
+  }
+
+  throw lastError ?? new NotFoundError('Block not found');
+}
 
 function sats(value) {
   if (typeof value !== 'number') {
@@ -332,7 +364,7 @@ export class AddressIndexer {
       return;
     }
 
-    const block = await rpcCall('getblock', [hash, 2]);
+    const block = await fetchBlockWithRetry(hash, this.logger);
     const height = expectedHeight ?? block.height;
     const timestamp = block.time ?? null;
     /** @type {BatchOperation[]} */
