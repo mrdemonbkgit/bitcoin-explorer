@@ -1,18 +1,23 @@
 # Address/Xpub Explorer — LevelDB Migration Plan
 
 ## Task Tracker
-- [ ] Development — (Dev)
-  - [ ] Evaluate LevelDB bindings and benchmark against current SQLite implementation.
-  - [ ] Implement storage adapter abstraction and LevelDB-backed indexer flows (initial sync, updates, reorgs).
-  - [ ] Wire configuration/feature flag to select LevelDB, defaulting to it once validated.
+- [x] Development — (Dev)
+  - [x] Capture LevelDB vs SQLite ingest/read benchmarks and document findings in this plan.
+  - [x] Implement storage adapter abstraction and LevelDB-backed indexer flows (initial sync, updates, reorgs).
+  - [x] Default the explorer to the LevelDB backend via configuration/feature toggle and retire the SQLite path.
 - [ ] Quality Assurance — (QA)
-  - [ ] Add unit/integration tests covering the LevelDB adapter, including crash/restart scenarios.
-  - [ ] Extend regtest smoke to rebuild with LevelDB and verify parity with existing responses.
-- [ ] DevOps — (DevOps)
-  - [ ] Ensure CI/build images ship LevelDB dependencies and native modules (or use prebuilt binaries).
-  - [ ] Update RUNBOOK/monitoring for LevelDB operational guidance and metrics.
-- [ ] Documentation — (Docs)
-  - [ ] Update README/PRD/CHANGELOG with LevelDB rollout details and reindex-from-genesis instructions.
+  - [ ] Add failure-injection coverage for the LevelDB adapter (crash during sync, resume on restart) alongside unit/integration assertions.
+  - [x] Extend regtest smoke to rebuild with LevelDB and verify parity with existing responses.
+- [x] DevOps — (DevOps)
+  - [x] Ensure CI/build images ship LevelDB dependencies and use the package-provided prebuilds where available.
+  - [x] Update RUNBOOK/monitoring for LevelDB operational guidance and metrics.
+- [x] Documentation — (Docs)
+  - [x] Update README/PRD/CHANGELOG with LevelDB rollout details and reindex-from-genesis instructions.
+
+### Status Notes (2025-09-20)
+- LevelDB-backed indexer is live with atomic batches, graceful shutdown, and progress logging (`src/infra/addressIndexer.js`).
+- Regtest smoke and CI cron job now exercise the LevelDB explorer via `REGTEST_ADDRESS_CHECK=true`.
+- LevelDB vs SQLite ingest/read benchmarks captured (see "Benchmark Results" section); next focus is failure-injection coverage to validate crash/restart resilience.
 
 ## Goals & Constraints
 - Replace SQLite with LevelDB (via the `level` package) to better handle multi-gigabyte datasets without a monolithic database file.
@@ -57,6 +62,21 @@
 - Fault-injection tests simulating crashes during sync to verify checkpoints and recovery match expectations.
 - Soak tests on large datasets to monitor memory/CPU, compaction behaviour, and restart times.
 
+## Benchmark Results (2025-09-20)
+- Environment: Node.js 24.8.0 on Linux 6.11 (8 vCPU), local `bitcoind -regtest -txindex=1` seeded via `generatetoaddress` plus ~600 wallet transfers to 50 sampled addresses.
+- Methodology: `scripts/bench/address-indexer-bench.js --sample 50 --warmups 1 --iterations 3` against the shared regtest dataset; SQLite numbers captured by running the same script inside commit `f842843` (pre-LevelDB) pointed at the identical node.
+- Artifacts: raw metrics recorded in `bench/leveldb-results.json` and `bench/sqlite-results.json`.
+
+| Backend | Ingest (s) | Address summary avg (ms) | Tx history avg (ms) | UTXO lookup avg (ms) |
+| --- | --- | --- | --- | --- |
+| LevelDB | 1.64 | 0.024 | 0.140 | 0.087 |
+| SQLite | 1.86 | 0.055 | 0.101 | 0.023 |
+
+- Findings:
+  - LevelDB initial sync finished ~12% faster (1.64s vs 1.86s) on the 226-block snapshot.
+  - Keyed lookups (`getAddressSummary`) are ~2.3× faster with LevelDB because summaries live in single-key JSON documents.
+  - Iteration-heavy reads (transaction history, UTXO listing) remain sub-millisecond, but SQLite’s indexed `ORDER BY` is still quicker; future optimisations could materialise sorted LevelDB prefixes or memoise hot UTXO lists.
+
 ## Documentation & Rollout
 - Update design docs (this plan + `docs/design/address-explorer.md`) with Task Tracker entries for migration milestones.
 - Prepare upgrade guide: prerequisites, re-index steps, verification commands, rollback instructions.
@@ -68,7 +88,6 @@
 - Backup/restore tooling expectations (snapshot via LevelDB checkpoints vs file copy).
 
 ## Next Steps
-1. Evaluate bindings and produce benchmark results (write/read latency) vs SQLite baseline.
-2. Prototype persistence adapter with minimal features (metadata + address summaries) and validate sync throughput.
-3. Expand adapter to cover full data model, implement reorg handling, and add parity tests against current implementation.
-4. Iterate on migration tooling/documentation based on operator feedback.
+1. Prototype LevelDB-side optimisations for transaction/UTXO iteration (sorted sublevel prefixes, cached aggregates) to narrow the remaining read latency gap.
+2. Expand adapter parity tests to cover reorg rollback and resumable sync using the new benchmarking harness as a regression gate.
+3. Iterate on migration tooling/documentation based on operator feedback.
