@@ -54,7 +54,7 @@ const ConfigSchema = z.object({
   WEBSOCKET_PATH: z.string().regex(/^\//, 'WebSocket path must start with /').default('/ws'),
   WEBSOCKET_PORT: OptionalPortSchema,
   FEATURE_ADDRESS_EXPLORER: BooleanSchema.default(false),
-  ADDRESS_INDEX_PATH: z.string().default('./data/address-index.db'),
+  ADDRESS_INDEX_PATH: z.string().default('./data/address-index'),
   ADDRESS_XPUB_GAP_LIMIT: z.coerce.number().int().positive().default(20)
 }).superRefine((data, ctx) => {
   const hasCookie = Boolean(data.BITCOIN_RPC_COOKIE);

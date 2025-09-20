@@ -1,6 +1,6 @@
 # Slim Bitcoin Explorer (Node.js)
 
-A lightweight, LAN-first Bitcoin block explorer that runs alongside your own Bitcoin Core node. It serves server-rendered HTML with optional JSON APIs, streams live updates via WebSockets, exports Prometheus metrics, and (when enabled) maintains a local SQLite index for address/xpub lookups—all without external services.
+A lightweight, LAN-first Bitcoin block explorer that runs alongside your own Bitcoin Core node. It serves server-rendered HTML with optional JSON APIs, streams live updates via WebSockets, exports Prometheus metrics, and (when enabled) maintains a local LevelDB index for address/xpub lookups—all without external services.
 
 ## Stack
 - Node.js 24.8.0 (ES modules)
@@ -8,7 +8,7 @@ A lightweight, LAN-first Bitcoin block explorer that runs alongside your own Bit
 - Nunjucks for server-side rendering
 - Axios with keep-alive agents for Bitcoin Core JSON-RPC
 - lru-cache for in-memory TTL caching
-- better-sqlite3 for the optional address/xpub index
+- level for the optional address/xpub index
 - bitcoinjs-lib + bip32 for key/address derivation
 - ws for LAN-only WebSocket pushes
 - prom-client for the metrics exporter
@@ -20,7 +20,7 @@ A lightweight, LAN-first Bitcoin block explorer that runs alongside your own Bit
 - **Blocks & transactions** – detailed block pages (height/hash) and transaction breakdowns with per-input/output addresses plus RBF hinting.
 - **Smart search** – accepts heights, block hashes, txids, addresses, and xpubs (routes to the appropriate view).
 - **Mempool dashboard** *(feature flagged)* – live histogram and recent transactions, refreshed via ZMQ/WebSockets when enabled.
-- **Address explorer** *(feature flagged)* – SQLite-backed balances, UTXOs, and paginated history for any address.
+- **Address explorer** *(feature flagged)* – LevelDB-backed balances, UTXOs, and paginated history for any address.
 - **Xpub explorer** *(feature flagged)* – derives the first `ADDRESS_XPUB_GAP_LIMIT` receive/change paths with balances and activity.
 - **JSON API** – `/api/v1/*` endpoints mirror the SSR views for automation and integrations.
 - **Prometheus metrics** *(feature flagged)* – `/metrics` exposes HTTP/RPC/cache/indexer counters and histograms.
@@ -86,7 +86,7 @@ WEBSOCKET_ENABLED=false
 WEBSOCKET_PATH=/ws
 WEBSOCKET_PORT=
 FEATURE_ADDRESS_EXPLORER=false
-ADDRESS_INDEX_PATH=./data/address-index.db
+ADDRESS_INDEX_PATH=./data/address-index
 ADDRESS_XPUB_GAP_LIMIT=20
 ```
 
@@ -97,7 +97,7 @@ ADDRESS_XPUB_GAP_LIMIT=20
 - Toggle the mempool dashboard entirely via `FEATURE_MEMPOOL_DASHBOARD=false` if operators prefer to disable the route.
 - Enable the Prometheus exporter with `METRICS_ENABLED=true`. The endpoint defaults to `/metrics` on the main bind; adjust via `METRICS_PATH`. Set `METRICS_INCLUDE_DEFAULT=true` to expose Node.js process metrics.
 - Enable LAN-only WebSocket pushes with `WEBSOCKET_ENABLED=true`. Clients use the configured `WEBSOCKET_PATH` (default `/ws`) and reuse the main server port unless `WEBSOCKET_PORT` is set. When active, the home and mempool pages hydrate with near-real-time updates while remaining fully functional without WebSockets.
-- Enable the address/xpub explorer with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (SQLite) and uses `ADDRESS_XPUB_GAP_LIMIT` (default 20) when deriving xpub branches. Initial sync walks the chain via RPC (checkpoints persist after restarts); expect runtime proportional to chain size.
+- Enable the address/xpub explorer with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (LevelDB directory) and uses `ADDRESS_XPUB_GAP_LIMIT` (default 20) when deriving xpub branches. Initial sync walks the chain via RPC (checkpoints persist after restarts); expect runtime proportional to chain size.
 
 ## Available Routes
 - `/` — Home dashboard with chain tip, mempool status, fee estimates, and search box

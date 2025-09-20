@@ -1,13 +1,22 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import Database from 'better-sqlite3';
+import { Level } from 'level';
 import { config } from '../config.js';
 import { getLogger } from './logger.js';
 import { rpcCall } from '../rpc.js';
 import { CacheEvents, subscribe } from './cacheEvents.js';
 
 const SATOSHIS_PER_BTC = 100_000_000;
+const HEIGHT_PAD = 12;
+const INDEX_PAD = 6;
+const PREFIXES = {
+  META: 'meta!',
+  SUMMARY: 'addr!',
+  UTXO: 'utxo!',
+  TX: 'tx!'
+};
+
 let singletonIndexer = null;
 
 function sats(value) {
@@ -17,154 +26,106 @@ function sats(value) {
   return Math.round(value * SATOSHIS_PER_BTC);
 }
 
-function ensureDirectory(filePath) {
-  const dir = path.dirname(filePath);
-  mkdirSync(dir, { recursive: true });
+function ensureDirectory(dirPath) {
+  mkdirSync(dirPath, { recursive: true });
+}
+
+function metaKey(key) {
+  return `${PREFIXES.META}${key}`;
+}
+
+function summaryKey(address) {
+  return `${PREFIXES.SUMMARY}${address}`;
+}
+
+function utxoKey(address, txid, vout) {
+  return `${PREFIXES.UTXO}${address}!${txid}!${String(vout)}`;
+}
+
+function txKey(address, height, direction, ioIndex, txid) {
+  return `${PREFIXES.TX}${address}!${formatHeight(height)}!${direction}!${padIndex(ioIndex)}!${txid}`;
+}
+
+function prefixRange(prefix) {
+  return {
+    gte: prefix,
+    lt: `${prefix}\uFFFF`
+  };
+}
+
+function formatHeight(height) {
+  if (typeof height !== 'number' || height < 0) {
+    return 'mempool';
+  }
+  return height.toString().padStart(HEIGHT_PAD, '0');
+}
+
+function padIndex(index) {
+  return index.toString().padStart(INDEX_PAD, '0');
+}
+
+function createSummary(address, height) {
+  const numericHeight = typeof height === 'number' ? height : null;
+  return {
+    address,
+    firstSeenHeight: numericHeight,
+    lastSeenHeight: numericHeight,
+    totalReceivedSat: 0,
+    totalSentSat: 0,
+    balanceSat: 0,
+    txCount: 0,
+    utxoCount: 0,
+    utxoValueSat: 0
+  };
+}
+
+function sanitizeSummary(summary) {
+  const clone = { ...summary };
+  clone.balanceSat = Math.max(0, clone.balanceSat);
+  clone.utxoCount = Math.max(0, clone.utxoCount);
+  clone.utxoValueSat = Math.max(0, clone.utxoValueSat);
+  return clone;
+}
+
+function isNotFound(error) {
+  return error?.notFound || error?.code === 'LEVEL_NOT_FOUND';
 }
 
 export class AddressIndexer {
   constructor(options = {}) {
     const { dbPath, gapLimit, logger } = options;
-    this.dbPath = dbPath ?? path.resolve('./data/address-index.db');
+    this.dbPath = dbPath ?? path.resolve('./data/address-index');
     this.gapLimit = gapLimit ?? 20;
     this.logger = logger ?? getLogger().child({ module: 'address-indexer' });
     this.db = null;
-    this.statements = {};
     this.subscriptions = [];
     this.prevoutCache = new Map();
     this.stopping = false;
     this.signalHandlers = [];
     this.syncInProgress = false;
+    this.syncChain = Promise.resolve();
   }
 
-  open() {
+  async open() {
     ensureDirectory(this.dbPath);
-    this.db = new Database(this.dbPath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('foreign_keys = ON');
-    this.db.pragma('synchronous = NORMAL');
-    this.setupSchema();
-    this.prepareStatements();
+    this.db = new Level(this.dbPath, { valueEncoding: 'json' });
+    await this.db.open();
   }
 
-  setupSchema() {
-    const schema = `
-      CREATE TABLE IF NOT EXISTS metadata (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS addresses (
-        address TEXT PRIMARY KEY,
-        first_seen_height INTEGER,
-        last_seen_height INTEGER,
-        total_received_sat INTEGER NOT NULL DEFAULT 0,
-        total_sent_sat INTEGER NOT NULL DEFAULT 0,
-        balance_sat INTEGER NOT NULL DEFAULT 0,
-        tx_count INTEGER NOT NULL DEFAULT 0
-      );
-
-      CREATE TABLE IF NOT EXISTS address_utxos (
-        address TEXT NOT NULL,
-        txid TEXT NOT NULL,
-        vout INTEGER NOT NULL,
-        value_sat INTEGER NOT NULL,
-        height INTEGER,
-        PRIMARY KEY (address, txid, vout),
-        FOREIGN KEY (address) REFERENCES addresses(address) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS address_txs (
-        address TEXT NOT NULL,
-        txid TEXT NOT NULL,
-        height INTEGER,
-        direction TEXT NOT NULL,
-        value_sat INTEGER NOT NULL,
-        io_index INTEGER NOT NULL,
-        timestamp INTEGER,
-        PRIMARY KEY (address, txid, direction, io_index),
-        FOREIGN KEY (address) REFERENCES addresses(address) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS xpubs (
-        xpub TEXT PRIMARY KEY,
-        label TEXT,
-        last_scanned_external INTEGER NOT NULL DEFAULT -1,
-        last_scanned_internal INTEGER NOT NULL DEFAULT -1,
-        gap_limit INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS xpub_addresses (
-        xpub TEXT NOT NULL,
-        branch INTEGER NOT NULL,
-        derivation_index INTEGER NOT NULL,
-        address TEXT NOT NULL,
-        PRIMARY KEY (xpub, branch, derivation_index),
-        FOREIGN KEY (xpub) REFERENCES xpubs(xpub) ON DELETE CASCADE
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_address_txs_height ON address_txs(address, height DESC);
-      CREATE INDEX IF NOT EXISTS idx_address_utxos_value ON address_utxos(address, value_sat DESC);
-    `;
-
-    this.db.exec(schema);
-  }
-
-  prepareStatements() {
-    const insertMetadata = this.db.prepare(`REPLACE INTO metadata (key, value) VALUES (?, ?)`);
-    const selectMetadata = this.db.prepare(`SELECT value FROM metadata WHERE key = ?`);
-    const upsertAddress = this.db.prepare(`
-      INSERT INTO addresses (address, first_seen_height, last_seen_height)
-      VALUES (@address, @height, @height)
-      ON CONFLICT(address) DO UPDATE SET last_seen_height = MAX(addresses.last_seen_height, excluded.last_seen_height)
-    `);
-    const addInbound = this.db.prepare(`
-      UPDATE addresses
-      SET total_received_sat = total_received_sat + @value,
-          balance_sat = balance_sat + @value,
-          tx_count = tx_count + CASE WHEN @incrementTx = 1 THEN 1 ELSE 0 END
-      WHERE address = @address
-    `);
-    const addOutbound = this.db.prepare(`
-      UPDATE addresses
-      SET total_sent_sat = total_sent_sat + @value,
-          balance_sat = balance_sat - @value,
-          tx_count = tx_count + CASE WHEN @incrementTx = 1 THEN 1 ELSE 0 END,
-          last_seen_height = MAX(last_seen_height, @height)
-      WHERE address = @address
-    `);
-    const insertUtxo = this.db.prepare(`
-      INSERT OR REPLACE INTO address_utxos (address, txid, vout, value_sat, height)
-      VALUES (@address, @txid, @vout, @value, @height)
-    `);
-    const deleteUtxo = this.db.prepare(`DELETE FROM address_utxos WHERE address = ? AND txid = ? AND vout = ?`);
-    const insertTx = this.db.prepare(`
-      INSERT OR IGNORE INTO address_txs (address, txid, height, direction, value_sat, io_index, timestamp)
-      VALUES (@address, @txid, @height, @direction, @value, @ioIndex, @timestamp)
-    `);
-
-    this.statements = {
-      insertMetadata,
-      selectMetadata,
-      upsertAddress,
-      addInbound,
-      addOutbound,
-      insertUtxo,
-      deleteUtxo,
-      insertTx
-    };
-  }
-
-  getMetadata(key, fallback = null) {
-    const row = this.statements.selectMetadata.get(key);
-    if (!row) {
-      return fallback;
+  async closeInternal() {
+    for (const unsubscribe of this.subscriptions) {
+      try {
+        unsubscribe();
+      } catch {
+        // ignore
+      }
     }
-    return row.value;
-  }
-
-  setMetadata(key, value) {
-    this.statements.insertMetadata.run(key, String(value));
+    this.subscriptions = [];
+    if (this.db) {
+      await this.db.close();
+      this.db = null;
+    }
+    this.prevoutCache.clear();
   }
 
   registerSignalHandlers() {
@@ -180,7 +141,7 @@ export class AddressIndexer {
         this.logger.warn({ context: { event: 'addressIndexer.shutdown.flush.error', signal }, err: error }, 'Timed out flushing indexer before shutdown');
       }
       try {
-        this.close();
+        await this.closeInternal();
       } catch (closeError) {
         this.logger.warn({ context: { event: 'addressIndexer.shutdown.close.error', signal }, err: closeError }, 'Error closing indexer after shutdown signal');
       }
@@ -208,41 +169,31 @@ export class AddressIndexer {
       }
       await delay(50);
     }
+    await this.syncChain.catch((error) => {
+      this.logger.error({ context: { event: 'addressIndexer.syncChain.error' }, err: error }, 'Error in sync chain during drain');
+    });
   }
 
-  async reconcileCheckpoint() {
-    const storedHeight = Number(this.getMetadata('last_processed_height', -1));
-    const txHeightRow = this.db.prepare('SELECT MAX(height) AS height FROM address_txs').get();
-    const utxoHeightRow = this.db.prepare('SELECT MAX(height) AS height FROM address_utxos').get();
-    const observedHeight = Math.max(
-      Number.isFinite(txHeightRow?.height) ? Number(txHeightRow.height) : -1,
-      Number.isFinite(utxoHeightRow?.height) ? Number(utxoHeightRow.height) : -1
-    );
-
-    if (observedHeight >= 0 && storedHeight !== observedHeight) {
-      this.logger.warn({
-        context: {
-          event: 'addressIndexer.checkpoint.reconcile',
-          storedHeight,
-          observedHeight
-        }
-      }, 'Adjusting checkpoint metadata after unclean shutdown');
-      this.setMetadata('last_processed_height', observedHeight);
-      try {
-        const reconciledHash = await rpcCall('getblockhash', [observedHeight]);
-        this.setMetadata('last_processed_hash', reconciledHash);
-      } catch (error) {
-        this.logger.warn({ context: { event: 'addressIndexer.checkpoint.hash.reconcile', height: observedHeight }, err: error }, 'Unable to reconcile last processed hash');
+  async getMetadata(key, fallback = null) {
+    try {
+      if (!this.db) {
+        return fallback;
       }
-    } else if (observedHeight < 0 && storedHeight >= 0) {
-      this.logger.warn({
-        context: {
-          event: 'addressIndexer.checkpoint.reset',
-          storedHeight
-        }
-      }, 'Resetting checkpoint metadata after detecting empty index tables');
-      this.setMetadata('last_processed_height', -1);
-      this.setMetadata('last_processed_hash', '');
+      return await this.db.get(metaKey(key));
+    } catch (error) {
+      if (isNotFound(error)) {
+        return fallback;
+      }
+      throw error;
+    }
+  }
+
+  async setMetadata(key, value, batch) {
+    const operation = { type: 'put', key: metaKey(key), value };
+    if (batch) {
+      batch.push(operation);
+    } else if (this.db) {
+      await this.db.put(operation.key, operation.value);
     }
   }
 
@@ -251,8 +202,7 @@ export class AddressIndexer {
       return;
     }
     this.stopping = false;
-    this.open();
-    await this.reconcileCheckpoint();
+    await this.open();
     this.registerSignalHandlers();
     await this.initialSync();
     if (!this.stopping) {
@@ -262,7 +212,7 @@ export class AddressIndexer {
 
   async initialSync() {
     const bestHeight = await rpcCall('getblockcount');
-    const lastProcessed = Number(this.getMetadata('last_processed_height', -1));
+    const lastProcessed = Number(this.toNumberOrNull(await this.getMetadata('last_processed_height', -1)));
     let nextHeight = lastProcessed + 1;
     const startHeight = nextHeight;
     const totalBlocks = bestHeight - startHeight + 1;
@@ -326,103 +276,164 @@ export class AddressIndexer {
       this.logger.debug({ context: { event: 'addressIndexer.block.skip', hash, reason: this.db ? 'stopping' : 'db-closed' } }, 'Skipping block processing during shutdown');
       return;
     }
+
     const block = await rpcCall('getblock', [hash, 2]);
     const height = expectedHeight ?? block.height;
     const timestamp = block.time ?? null;
+    const operations = [];
+    const summaries = new Map();
 
-    const transactionsWithPrevouts = [];
     for (const transaction of block.tx || []) {
-      // Preload prevouts before entering SQLite transaction
       const prevouts = await this.fetchPrevouts(transaction);
-      transactionsWithPrevouts.push({ transaction, prevouts });
-    }
+      const addressesSeen = new Set();
 
-    if (!this.db) {
-      this.logger.debug({ context: { event: 'addressIndexer.block.skip', hash, reason: 'db-closed-post-fetch' } }, 'Database closed before processing block');
-      return;
-    }
+      // Outputs (inbound)
+      for (const output of transaction.vout || []) {
+        if (!output?.scriptPubKey) {
+          continue;
+        }
+        const addresses = output.scriptPubKey.addresses || (output.scriptPubKey.address ? [output.scriptPubKey.address] : []);
+        if (!Array.isArray(addresses) || addresses.length === 0) {
+          continue;
+        }
+        const valueSat = sats(output.value ?? 0);
+        for (const address of addresses) {
+          const summary = await this.getSummaryForMutation(address, height, summaries);
+          if (!addressesSeen.has(address)) {
+            summary.txCount += 1;
+            addressesSeen.add(address);
+          }
+          if (typeof height === 'number') {
+            summary.lastSeenHeight = summary.lastSeenHeight != null ? Math.max(summary.lastSeenHeight, height) : height;
+            summary.firstSeenHeight = summary.firstSeenHeight != null ? Math.min(summary.firstSeenHeight, height) : height;
+          }
+          summary.totalReceivedSat += valueSat;
+          summary.balanceSat += valueSat;
+          summary.utxoCount += 1;
+          summary.utxoValueSat += valueSat;
 
-    const tx = this.db.transaction((entries) => {
-      for (const entry of entries) {
-        this.processTransaction(entry.transaction, entry.prevouts, height, timestamp);
+          operations.push({
+            type: 'put',
+            key: utxoKey(address, transaction.txid, output.n ?? 0),
+            value: {
+              address,
+              txid: transaction.txid,
+              vout: output.n ?? 0,
+              valueSat,
+              height
+            }
+          });
+          operations.push({
+            type: 'put',
+            key: txKey(address, height, 'in', output.n ?? 0, transaction.txid),
+            value: {
+              address,
+              txid: transaction.txid,
+              height,
+              direction: 'in',
+              valueSat,
+              ioIndex: output.n ?? 0,
+              timestamp
+            }
+          });
+        }
       }
-      this.setMetadata('last_processed_hash', hash);
-      this.setMetadata('last_processed_height', height);
-    });
 
-    tx(transactionsWithPrevouts);
-    this.logger.debug({
-      context: {
-        event: 'addressIndexer.block.synced',
+      // Inputs (outbound)
+      for (const [index, input] of (transaction.vin || []).entries()) {
+        if (input.coinbase) {
+          continue;
+        }
+        const prevout = prevouts[index];
+        if (!prevout) {
+          continue;
+        }
+        const valueSat = sats(prevout.value ?? 0);
+        const addresses = prevout.scriptPubKey?.addresses || (prevout.scriptPubKey?.address ? [prevout.scriptPubKey.address] : []);
+        for (const address of addresses) {
+          const summary = await this.getSummaryForMutation(address, height, summaries);
+          const incrementTx = !addressesSeen.has(address);
+          if (incrementTx) {
+            addressesSeen.add(address);
+          }
+          this.applyOutbound({
+            address,
+            currentTxid: transaction.txid,
+            prevTxid: input.txid,
+            prevVout: input.vout ?? 0,
+            valueSat,
+            height,
+            timestamp,
+            incrementTx,
+            summary
+          }, operations);
+        }
+      }
+    }
+
+    for (const [address, summary] of summaries.entries()) {
+      operations.push({
+        type: 'put',
+        key: summaryKey(address),
+        value: sanitizeSummary(summary)
+      });
+    }
+
+    await this.setMetadata('last_processed_hash', hash, operations);
+    await this.setMetadata('last_processed_height', height, operations);
+    await this.db.batch(operations, { atomic: true });
+  }
+
+  async getSummaryForMutation(address, height, cache) {
+    if (cache.has(address)) {
+      return cache.get(address);
+    }
+    let summary;
+    try {
+      summary = await this.db.get(summaryKey(address));
+    } catch (error) {
+      if (isNotFound(error)) {
+        summary = createSummary(address, height);
+      } else {
+        throw error;
+      }
+    }
+    if (typeof height === 'number') {
+      summary.firstSeenHeight = summary.firstSeenHeight != null ? Math.min(summary.firstSeenHeight, height) : height;
+      summary.lastSeenHeight = summary.lastSeenHeight != null ? Math.max(summary.lastSeenHeight, height) : height;
+    }
+    cache.set(address, summary);
+    return summary;
+  }
+
+  applyOutbound({ address, currentTxid, prevTxid, prevVout, valueSat, height, timestamp, incrementTx, summary }, operations) {
+    summary.totalSentSat += valueSat;
+    summary.balanceSat -= valueSat;
+    summary.utxoCount = Math.max(0, summary.utxoCount - 1);
+    summary.utxoValueSat = Math.max(0, summary.utxoValueSat - valueSat);
+    if (incrementTx) {
+      summary.txCount += 1;
+    }
+    if (typeof height === 'number') {
+      summary.lastSeenHeight = summary.lastSeenHeight != null ? Math.max(summary.lastSeenHeight, height) : height;
+    }
+
+    operations.push({
+      type: 'del',
+      key: utxoKey(address, prevTxid, prevVout)
+    });
+    operations.push({
+      type: 'put',
+      key: txKey(address, height, 'out', prevVout, currentTxid),
+      value: {
+        address,
+        txid: currentTxid,
         height,
-        hash
+        direction: 'out',
+        valueSat,
+        ioIndex: prevVout,
+        timestamp
       }
-    }, 'Processed block for address index');
-  }
-
-  processTransaction(transaction, prevouts, height, timestamp) {
-    const addressesSeen = new Set();
-
-    // Outputs
-    for (const output of transaction.vout || []) {
-      if (!output.scriptPubKey) {
-        continue;
-      }
-      const addresses = output.scriptPubKey.addresses || (output.scriptPubKey.address ? [output.scriptPubKey.address] : []);
-      if (!Array.isArray(addresses) || addresses.length === 0) {
-        continue;
-      }
-      const value = sats(output.value ?? 0);
-      for (const address of addresses) {
-        addressesSeen.add(address);
-        this.recordInbound(address, transaction.txid, output.n ?? 0, value, height, timestamp);
-      }
-    }
-
-    // Inputs
-    (transaction.vin || []).forEach((input, index) => {
-      if (input.coinbase) {
-        return;
-      }
-      const prevout = prevouts[index];
-      if (!prevout) {
-        return;
-      }
-      const value = sats(prevout.value ?? 0);
-      const addresses = prevout.scriptPubKey?.addresses || (prevout.scriptPubKey?.address ? [prevout.scriptPubKey.address] : []);
-      for (const address of addresses) {
-        this.recordOutbound(address, input.txid, input.vout ?? 0, transaction.txid, value, height, timestamp, !addressesSeen.has(address));
-      }
-    });
-  }
-
-  recordInbound(address, txid, vout, value, height, timestamp) {
-    this.statements.upsertAddress.run({ address, height });
-    this.statements.addInbound.run({ address, value, incrementTx: 1 });
-    this.statements.insertUtxo.run({ address, txid, vout, value, height });
-    this.statements.insertTx.run({
-      address,
-      txid,
-      height,
-      direction: 'in',
-      value,
-      ioIndex: vout,
-      timestamp
-    });
-  }
-
-  recordOutbound(address, prevTxid, prevVout, currentTxid, value, height, timestamp, incrementTx) {
-    this.statements.upsertAddress.run({ address, height });
-    this.statements.addOutbound.run({ address, value, height, incrementTx: incrementTx ? 1 : 0 });
-    this.statements.deleteUtxo.run(address, prevTxid, prevVout);
-    this.statements.insertTx.run({
-      address,
-      txid: currentTxid,
-      height,
-      direction: 'out',
-      value,
-      ioIndex: prevVout,
-      timestamp
     });
   }
 
@@ -454,92 +465,110 @@ export class AddressIndexer {
     return results;
   }
 
-  async watchZmq() {
-    const unsubscribeBlock = subscribe(CacheEvents.BLOCK_NEW, async ({ hash }) => {
-      if (this.stopping) {
-        return;
-      }
-      this.syncInProgress = true;
-      try {
-        await this.processBlockHash(hash);
-      } catch (error) {
-        this.logger.error({ context: { event: 'addressIndexer.block.error', hash }, err: error }, 'Failed to process new block');
-      } finally {
-        this.syncInProgress = false;
-      }
+  watchZmq() {
+    const unsubscribeBlock = subscribe(CacheEvents.BLOCK_NEW, ({ hash }) => {
+      this.syncChain = this.syncChain
+        .then(async () => {
+          if (this.stopping) {
+            return;
+          }
+          this.syncInProgress = true;
+          try {
+            await this.processBlockHash(hash);
+          } catch (error) {
+            this.logger.error({ context: { event: 'addressIndexer.block.error', hash }, err: error }, 'Failed to process new block');
+          } finally {
+            this.syncInProgress = false;
+          }
+        })
+        .catch((error) => {
+          this.logger.error({ context: { event: 'addressIndexer.syncChain.error' }, err: error }, 'Error in sync chain');
+        });
     });
 
     this.subscriptions.push(unsubscribeBlock);
   }
 
-  close() {
-    this.unregisterSignalHandlers();
+  async shutdown() {
+    if (this.stopping) {
+      await this.awaitSyncDrain().catch(() => {});
+      return;
+    }
     this.stopping = true;
-    this.syncInProgress = false;
-    for (const unsubscribe of this.subscriptions) {
-      try {
-        unsubscribe();
-      } catch {
-        // ignore
-      }
-    }
-    this.subscriptions = [];
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-    }
+    await this.awaitSyncDrain().catch(() => {});
+    this.unregisterSignalHandlers();
+    await this.closeInternal();
   }
 
   // Query helpers
-  getAddressSummary(address) {
-    const row = this.db.prepare(`SELECT * FROM addresses WHERE address = ?`).get(address);
-    if (!row) {
-      return null;
+  async getAddressSummary(address) {
+    try {
+      const summary = await this.db.get(summaryKey(address));
+      return summary;
+    } catch (error) {
+      if (isNotFound(error)) {
+        return null;
+      }
+      throw error;
     }
-    const utxoStats = this.db.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(value_sat), 0) AS total FROM address_utxos WHERE address = ?`).get(address);
-    return {
-      address,
-      firstSeenHeight: row.first_seen_height,
-      lastSeenHeight: row.last_seen_height,
-      totalReceivedSat: row.total_received_sat,
-      totalSentSat: row.total_sent_sat,
-      balanceSat: row.balance_sat,
-      txCount: row.tx_count,
-      utxoCount: utxoStats?.count ?? 0,
-      utxoValueSat: utxoStats?.total ?? 0
-    };
   }
 
-  getAddressTransactions(address, { page = 1, pageSize = 25 }) {
-    const offset = (page - 1) * pageSize;
-    const rows = this.db
-      .prepare(`
-        SELECT txid, height, direction, value_sat, io_index, timestamp
-        FROM address_txs
-        WHERE address = ?
-        ORDER BY COALESCE(height, 1 << 30) DESC, txid
-        LIMIT ? OFFSET ?
-      `)
-      .all(address, pageSize, offset);
+  async getAddressTransactions(address, { page = 1, pageSize = 25 }) {
+    const safePageSize = Math.max(1, pageSize);
+    const safePage = Math.max(1, page);
+    const { gte, lt } = prefixRange(`${PREFIXES.TX}${address}!`);
+    const iterator = this.db.iterator({ gte, lt, reverse: true });
+    const rows = [];
+    let totalRows = 0;
+    const startIndex = (safePage - 1) * safePageSize;
 
-    const totalRows = this.db
-      .prepare(`SELECT COUNT(*) AS count FROM address_txs WHERE address = ?`)
-      .get(address)?.count || 0;
+    try {
+      for await (const [, value] of iterator) {
+        totalRows += 1;
+        if (totalRows <= startIndex) {
+          continue;
+        }
+        if (rows.length < safePageSize) {
+          rows.push(value);
+        } else {
+          break;
+        }
+      }
+    } finally {
+      await iterator.close();
+    }
 
     return {
       rows,
       pagination: {
-        page,
-        pageSize,
+        page: safePage,
+        pageSize: safePageSize,
         totalRows
       }
     };
   }
 
-  getAddressUtxos(address) {
-    return this.db
-      .prepare(`SELECT txid, vout, value_sat, height FROM address_utxos WHERE address = ? ORDER BY value_sat DESC`)
-      .all(address);
+  async getAddressUtxos(address) {
+    const { gte, lt } = prefixRange(`${PREFIXES.UTXO}${address}!`);
+    const iterator = this.db.iterator({ gte, lt });
+    const utxos = [];
+    try {
+      for await (const [, value] of iterator) {
+        utxos.push(value);
+      }
+    } finally {
+      await iterator.close();
+    }
+    utxos.sort((a, b) => b.valueSat - a.valueSat);
+    return utxos;
+  }
+
+  toNumberOrNull(value) {
+    if (value == null) {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 }
 
@@ -562,9 +591,9 @@ export function getAddressIndexer() {
   return singletonIndexer;
 }
 
-export function stopAddressIndexer() {
+export async function stopAddressIndexer() {
   if (singletonIndexer) {
-    singletonIndexer.close();
+    await singletonIndexer.shutdown();
     singletonIndexer = null;
   }
 }

@@ -26,7 +26,7 @@ A **local-LAN accessible**, read-only Bitcoin block explorer implemented with a 
 
 **Non‑Goals (MVP)**
 - No descriptor-based scanning or advanced analytics beyond balances/history.
-- No external databases (Postgres/Redis); only the bundled SQLite index.
+- No external databases (Postgres/Redis); only the bundled embedded LevelDB index.
 - No reverse proxy (Nginx) or systemd CPU/RAM caps.
 
 ---

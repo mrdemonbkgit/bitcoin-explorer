@@ -20,12 +20,12 @@ export async function getAddressDetails(address, { page = 1, pageSize = 25 } = {
   }
   await ensureIndexerStarted();
   const indexer = getAddressIndexer();
-  const summary = indexer.getAddressSummary(address);
+  const summary = await indexer.getAddressSummary(address);
   if (!summary) {
     throw new NotFoundError('Address not found in local index');
   }
-  const txs = indexer.getAddressTransactions(address, { page, pageSize });
-  const utxos = indexer.getAddressUtxos(address);
+  const txs = await indexer.getAddressTransactions(address, { page, pageSize });
+  const utxos = await indexer.getAddressUtxos(address);
 
   return {
     summary,
@@ -67,7 +67,7 @@ function deriveAddressesFromNode(node, network, gapLimit) {
   return result;
 }
 
-function deriveAddressesFromXpub(xpub, gapLimit, { indexer }) {
+async function deriveAddressesFromXpub(xpub, gapLimit, { indexer }) {
   let fallback = null;
 
   for (const candidate of XPUB_NETWORK_CANDIDATES) {
@@ -87,9 +87,11 @@ function deriveAddressesFromXpub(xpub, gapLimit, { indexer }) {
       return derived;
     }
 
-    const hasMatch = derived.some((entry) => Boolean(indexer.getAddressSummary(entry.address)));
-    if (hasMatch) {
-      return derived;
+    if (indexer) {
+      const summaries = await Promise.all(derived.map((entry) => indexer.getAddressSummary(entry.address)));
+      if (summaries.some(Boolean)) {
+        return derived;
+      }
     }
   }
 
@@ -103,18 +105,20 @@ export async function getXpubDetails(xpub) {
   await ensureIndexerStarted();
   const indexer = getAddressIndexer();
   const gapLimit = config.address.xpubGapLimit;
-  const derived = deriveAddressesFromXpub(xpub, gapLimit, { indexer });
+  const derived = await deriveAddressesFromXpub(xpub, gapLimit, { indexer });
+
+  const summaries = await Promise.all(derived.map((entry) => indexer.getAddressSummary(entry.address)));
 
   const addresses = [];
   let totalBalance = 0;
   let totalReceived = 0;
   let totalSent = 0;
 
-  for (const item of derived) {
-    const summary = indexer.getAddressSummary(item.address);
+  derived.forEach((item, idx) => {
+    const summary = summaries[idx];
     if (!summary) {
       addresses.push({ ...item, balanceSat: 0, totalReceivedSat: 0, totalSentSat: 0, txCount: 0 });
-      continue;
+      return;
     }
     addresses.push({
       ...item,
@@ -126,7 +130,7 @@ export async function getXpubDetails(xpub) {
     totalBalance += summary.balanceSat;
     totalReceived += summary.totalReceivedSat;
     totalSent += summary.totalSentSat;
-  }
+  });
 
   return {
     xpub,

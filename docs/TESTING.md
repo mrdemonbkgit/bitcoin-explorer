@@ -95,7 +95,7 @@ Keep this document updated as new features land or testing strategy evolves.
 1. Enable the feature in `.env`:
    ```ini
    FEATURE_ADDRESS_EXPLORER=true
-   ADDRESS_INDEX_PATH=./data/address-index.db
+   ADDRESS_INDEX_PATH=./data/address-index
    ADDRESS_XPUB_GAP_LIMIT=20
    ```
 2. Start the explorer and monitor logs for `addressIndexer.sync.complete` (or `addressIndexer.sync.halted` if you intentionally stop it mid-way). Initial sync can take time depending on chain size.

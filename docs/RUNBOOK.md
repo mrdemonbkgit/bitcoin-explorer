@@ -36,7 +36,7 @@ Additional environment controls:
 - `FEATURE_MEMPOOL_DASHBOARD` — disable the `/mempool` route when set to `false`.
 - `METRICS_ENABLED`, `METRICS_PATH`, `METRICS_INCLUDE_DEFAULT` — toggle the Prometheus metrics endpoint (default `/metrics` on the main bind). Leave disabled unless scraping from a trusted LAN host.
 - `WEBSOCKET_ENABLED`, `WEBSOCKET_PATH`, `WEBSOCKET_PORT` — enable LAN-only WebSocket pushes for home/mempool updates. When `WEBSOCKET_PORT` is blank the gateway shares the main HTTP server; otherwise it binds separately on the provided port.
-- `FEATURE_ADDRESS_EXPLORER`, `ADDRESS_INDEX_PATH`, `ADDRESS_XPUB_GAP_LIMIT` — enable the SQLite-backed address/xpub explorer, configure index storage path, and set the derivation gap limit for xpub views.
+- `FEATURE_ADDRESS_EXPLORER`, `ADDRESS_INDEX_PATH`, `ADDRESS_XPUB_GAP_LIMIT` — enable the LevelDB-backed address/xpub explorer, configure index storage path, and set the derivation gap limit for xpub views.
 
 ## Deployment
 ```bash
@@ -94,11 +94,11 @@ npm run test:regtest
 - Optional: when running `npm run test:regtest`, set `REGTEST_WS_CHECK=true` to verify WebSocket broadcasts end-to-end.
 
 ## Address/Xpub Explorer
-- Enable the feature with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (default `./data/address-index.db`) using SQLite WAL mode.
+- Enable the feature with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (default `./data/address-index`) using LevelDB storage.
 - On first start the indexer walks the chain via `getblockhash/getblock` and stores address/UTXO mappings; expect runtime proportional to chain size. Track progress via logs (`addressIndexer.sync.progress` every 100 blocks, `addressIndexer.sync.complete` when finished, or `addressIndexer.sync.halted` if shutdown occurs mid-sync). Checkpoints are persisted after each block, so restarts resume from the last processed height instead of starting over.
 - Subsequent updates rely on existing ZMQ notifications. If ZMQ is disabled, the indexer periodically polls new blocks during API usage.
 - Xpub views derive the first `ADDRESS_XPUB_GAP_LIMIT` addresses on both external/internal branches and aggregate balances from the index. Adjust the gap limit as needed for larger wallets.
-- Backup/restore: stop the explorer, copy the SQLite file, and restart. To rebuild from scratch, delete `ADDRESS_INDEX_PATH` and restart with the feature enabled (will rescan from height 0). For a graceful shutdown during sync, send `SIGINT`/`SIGTERM`, wait for `server.shutdown.complete`, and confirm the indexer logged either `sync.halted` or `sync.complete` before terminating.
+- Backup/restore: stop the explorer, copy the LevelDB directory (or take a filesystem snapshot), and restart. To rebuild from scratch, delete `ADDRESS_INDEX_PATH` and restart with the feature enabled (will rescan from height 0). For a graceful shutdown during sync, send `SIGINT`/`SIGTERM`, wait for `server.shutdown.complete`, and confirm the indexer logged either `sync.halted` or `sync.complete` before terminating.
 
 ## Incident Response
 1. Confirm Bitcoin Core RPC availability (`bitcoin-cli getblockcount`).

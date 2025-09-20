@@ -296,7 +296,7 @@ function startServer() {
         }
       }
       if (config.address.enabled) {
-        stopAddressIndexer();
+        await stopAddressIndexer();
       }
       logger.info({ context: { event: 'server.shutdown.complete', signal } }, 'server.shutdown.complete');
     } catch (error) {

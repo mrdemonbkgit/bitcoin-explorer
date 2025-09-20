@@ -18,5 +18,5 @@ process.env.WEBSOCKET_ENABLED = process.env.WEBSOCKET_ENABLED ?? 'false';
 process.env.WEBSOCKET_PATH = process.env.WEBSOCKET_PATH ?? '/ws';
 process.env.WEBSOCKET_PORT = process.env.WEBSOCKET_PORT ?? '';
 process.env.FEATURE_ADDRESS_EXPLORER = process.env.FEATURE_ADDRESS_EXPLORER ?? 'true';
-process.env.ADDRESS_INDEX_PATH = process.env.ADDRESS_INDEX_PATH ?? ':memory:';
+process.env.ADDRESS_INDEX_PATH = process.env.ADDRESS_INDEX_PATH ?? `./data/test-address-index-${process.pid}`;
 process.env.ADDRESS_XPUB_GAP_LIMIT = process.env.ADDRESS_XPUB_GAP_LIMIT ?? '20';
