@@ -34,54 +34,22 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
 
 ## 2025-09-20
 ### Done
-- test(regtest): extend smoke with optional address/xpub checks — (Pending)
-  - Context: `scripts/regtest/smoke.js`, CI scheduled run now sets `REGTEST_ADDRESS_CHECK`/`REGTEST_SCRAPE_METRICS`.
-- feat(address): allow xpub derivation to detect regtest/testnet networks — (Pending)
-  - Context: `src/services/addressExplorerService.js` + new unit coverage for tpub support.
-- ci: schedule nightly regtest smoke with metrics/address toggles — (Pending)
-  - Context: `.github/workflows/ci.yml` now runs on cron with feature flags enabled.
-- feat(address): harden indexer checkpoints and graceful shutdown — (Pending)
-  - Context: `src/infra/addressIndexer.js` ensures atomic block commits, checkpoint reconciliation, and signal handling; docs updated (`docs/RUNBOOK.md`, `docs/design/address-explorer.md`, `docs/TESTING.md`, `README.md`, `CHANGELOG.md`).
-- feat(address): migrate indexer storage to LevelDB — (Pending)
-  - Context: `src/infra/addressIndexer.js` now uses `level`, dependency updates, services/docs/tests updated for the new backend (see new LevelDB plan doc).
-- feat(tx): surface resolved addresses on transaction view & API — (Pending)
-  - Context: `src/services/bitcoinService.js`, `views/tx.njk`, tests, and docs (`README.md`, `docs/API.md`, `docs/TESTING.md`, `docs/PRD.md`, `docs/design/api-ssr-plan.md`).
-- feat(metrics): add Prometheus exporter with instrumentation — (Commit 0ee2879)
-  - Context: `docs/design/metrics-exporter.md` Task Tracker completed; updated README/RUNBOOK/TESTING for env flags and smoke steps.
-- feat(websocket): deliver LAN WebSocket notifications + client hydration — (Commit d594bfd)
-  - Context: `docs/design/websocket-updates.md` Task Tracker completed; home/mempool pages now auto-refresh using `/api/v1` data; optional regtest WS check added.
-- feat(address): ship SQLite-backed address/xpub explorer with SSR/API routes — (Commit f842843)
-  - Context: `docs/design/address-explorer.md` Task Tracker completed; indexer syncs via RPC/ZMQ, new `/address/:id` & `/xpub/:key` views/APIs, docs updated (README/RUNBOOK/TESTING) with env guidance.
-- docs(worklog): note resetting metrics flags after verification — (Commit 584f9c7)
-- docs(design): add WebSocket notifications plan + Task Tracker updates — (Commit 80fec11)
+- chore(address): document leveldb benchmark results — (Commit 35f8c90)
+  - Context: Added reusable harness outputs (`bench/leveldb-results.json`, `bench/sqlite-results.json`) and captured comparative metrics in `docs/design/address-explorer-leveldb-migration.md`.
+- ci(address): add nightly indexer benchmark — (Commit d08f765)
+  - Context: Introduced `benchmark-indexer` GitHub Actions job plus local helpers (`scripts/bench/run-ci.js`, `scripts/bench/compare-results.js`, `.gitignore` updates) to guard LevelDB ingest/read performance against regressions.
+- docs(address): document leveldb benchmark workflow — (Commit b056143)
+  - Context: README, TESTING, and RUNBOOK now describe how to run the benchmark guardrail locally and how CI publishes the `address-indexer-benchmark` artifact; migration plan notes the nightly job.
 
 ### In Progress
-- docs/process: adopt Conventional Commit titles/messages across open PRs (Owner: Docs/Product)
+- QA: add failure-injection coverage for LevelDB adapter restart scenarios (Refs Task Tracker in `docs/design/address-explorer.md`).
 
 ### Next
-- qa: monitor nightly regtest smoke outputs and promote failures to blocking issues
-- docs: review PRD/RUNBOOK after nightly coverage burns in (ensure operators know about new toggles)
+- DevOps: monitor first nightly `benchmark-indexer` run and tune thresholds if ingest/read variance remains high.
+- Docs: refresh PRD/RUNBOOK after benchmark data stabilises to reflect recommended thresholds.
 
 ### Blockers/Risks
-- Conventional Commit adoption retroactively for existing commits may require rebase if we decide to enforce strictly.
+- Benchmark deltas currently spike when chain height differs; consider extending seed routine to match baseline depth before tightening tolerances.
 
 ### Notes
 - Remember to disable `METRICS_ENABLED`/`WEBSOCKET_ENABLED` after local verification unless the environment expects them.
-
-## 2025-09-19
-### Done
-- docs(agents): add Task Tracker convention; adopt Conventional Commits — (PR pending)
-- docs: add WORKLOG with usage and template — this file
-
-### In Progress
-- docs(design): add Task Tracker sections to `near-term-phase1.md` and `api-ssr-plan.md`
-
-### Next
-- ci: add PR template enforcing Conventional Commits + Task Tracker link
-- test: wire unit tests into CI once suites stabilise
-
-### Blockers/Risks
-- None today
-
-### Notes
-- Keep Task Tracker checkboxes updated during PRs; “done” = merged to `main`.
