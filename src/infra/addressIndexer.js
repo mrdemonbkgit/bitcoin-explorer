@@ -299,14 +299,21 @@ export class AddressIndexer {
       nextHeight += 1;
     }
 
-    this.syncInProgress = false;
-
-    this.logger.info({
-      context: {
-        event: 'addressIndexer.sync.complete',
-        height: bestHeight
-      }
-    }, 'Address index initial sync complete');
+    if (this.stopping) {
+      this.logger.info({
+        context: {
+          event: 'addressIndexer.sync.halted',
+          lastProcessedHeight: nextHeight - 1
+        }
+      }, 'Address index initial sync halted before completion');
+    } else {
+      this.logger.info({
+        context: {
+          event: 'addressIndexer.sync.complete',
+          height: bestHeight
+        }
+      }, 'Address index initial sync complete');
+    }
   }
 
   async processBlockHeight(height) {
@@ -315,6 +322,10 @@ export class AddressIndexer {
   }
 
   async processBlockHash(hash, expectedHeight = null) {
+    if (this.stopping || !this.db) {
+      this.logger.debug({ context: { event: 'addressIndexer.block.skip', hash, reason: this.db ? 'stopping' : 'db-closed' } }, 'Skipping block processing during shutdown');
+      return;
+    }
     const block = await rpcCall('getblock', [hash, 2]);
     const height = expectedHeight ?? block.height;
     const timestamp = block.time ?? null;
@@ -324,6 +335,11 @@ export class AddressIndexer {
       // Preload prevouts before entering SQLite transaction
       const prevouts = await this.fetchPrevouts(transaction);
       transactionsWithPrevouts.push({ transaction, prevouts });
+    }
+
+    if (!this.db) {
+      this.logger.debug({ context: { event: 'addressIndexer.block.skip', hash, reason: 'db-closed-post-fetch' } }, 'Database closed before processing block');
+      return;
     }
 
     const tx = this.db.transaction((entries) => {
