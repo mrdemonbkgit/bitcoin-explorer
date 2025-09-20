@@ -116,10 +116,9 @@
 - Storage engine choice: LevelDB is lightweight but JS binding options vs sqlite/better-sqlite3 tradeoffs.
 
 ## Next Steps
-1. Technical spike: evaluate LevelDB vs SQLite for storing address maps in Node.js (performance, bindings, ecosystem support).
-2. Draft detailed indexer architecture (initial sync, incremental updates, reorg handling) with data model diagrams.
-3. Update PRD Section 3/Scope with agreed address/xpub features; capture non-goals explicitly.
-4. Extend RUNBOOK/TESTING outlines with indexer operations (build, verification, cleanup).
+1. Plan the RocksDB migration (see `docs/design/address-explorer-rocksdb-migration.md`) with the assumption that operators will reindex from genesis, not convert existing SQLite data.
+2. Update PRD Section 3/Scope with agreed address/xpub features; capture non-goals explicitly.
+3. Extend RUNBOOK/TESTING outlines with indexer operations (build, verification, cleanup) as storage changes land.
 
 ## References
 - `docs/EXPANSION.md` — Mid-term milestone: Local Indexing & Address Explorer.

@@ -1,5 +1,21 @@
 # Address/Xpub Explorer — RocksDB Migration Plan
 
+# Address/Xpub Explorer — RocksDB Migration Plan
+
+## Task Tracker
+- [ ] Development — (Dev)
+  - [ ] Evaluate RocksDB bindings and benchmark against current SQLite implementation.
+  - [ ] Implement storage adapter abstraction and RocksDB-backed indexer flows (initial sync, updates, reorgs).
+  - [ ] Wire configuration/feature flag to select RocksDB, defaulting to it once validated.
+- [ ] Quality Assurance — (QA)
+  - [ ] Add unit/integration tests covering the RocksDB adapter, including crash/restart scenarios.
+  - [ ] Extend regtest smoke to rebuild with RocksDB and verify parity with existing responses.
+- [ ] DevOps — (DevOps)
+  - [ ] Ensure CI/build images ship RocksDB dependencies and native modules.
+  - [ ] Update RUNBOOK/monitoring for RocksDB operational guidance and metrics.
+- [ ] Documentation — (Docs)
+  - [ ] Update README/PRD/CHANGELOG with RocksDB rollout details and reindex-from-genesis instructions.
+
 ## Goals & Constraints
 - Replace SQLite with RocksDB to better handle multi-gigabyte datasets without a monolithic database file.
 - Preserve LAN-first deployment, deterministic rebuild capability, and existing API/SSR contracts.
@@ -29,9 +45,8 @@
 - Rework initial sync, incremental updates, and reorg handling to use adapter abstractions while keeping business logic intact.
 
 ## Migration Strategy
-- Primary path: re-index from genesis using RocksDB; document downtime expectations and disk requirements.
-- Optional tooling: one-time migration script to stream data from existing SQLite DB into RocksDB for operators unwilling to rescan (non-goal for MVP but capture requirements).
-- Provide feature flag/env to choose backend (`ADDRESS_STORE=sqlite|rocksdb`) with RocksDB as default once validated.
+- Re-index from genesis using RocksDB; document downtime expectations, disk requirements, and expected duration. No live data migration from existing SQLite databases is planned—the index will be rebuilt.
+- Provide feature flag/env to choose backend (`ADDRESS_STORE=sqlite|rocksdb`) with RocksDB as default once validated, retaining SQLite for rollback during early rollout.
 
 ## Operational Considerations
 - Update RUNBOOK with RocksDB deployment notes (filesystem layout, compaction tuning, backup strategy).
