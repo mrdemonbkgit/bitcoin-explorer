@@ -80,3 +80,43 @@ jobs:
           REGTEST_SCRAPE_METRICS: 'true'
           REGTEST_ADDRESS_CHECK: 'true'
         run: npm run test:regtest
+
+  benchmark-indexer:
+    runs-on: ubuntu-latest
+    needs: quality
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install bitcoind
+        run: sudo apt-get update && sudo apt-get install -y bitcoind
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run address indexer benchmark
+        env:
+          BITCOIND_PATH: bitcoind
+          BENCH_MAX_INGEST_DELTA: '0.20'
+          BENCH_MAX_SUMMARY_DELTA: '0.35'
+          BENCH_MAX_TX_DELTA: '0.35'
+          BENCH_MAX_UTXO_DELTA: '0.50'
+        run: |
+          npm run bench:address
+          npm run bench:compare
+
+      - name: Upload benchmark artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: address-indexer-benchmark
+          path: bench/current-results.json
+          retention-days: 7

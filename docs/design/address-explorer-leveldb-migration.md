@@ -81,6 +81,7 @@
 - Update design docs (this plan + `docs/design/address-explorer.md`) with Task Tracker entries for migration milestones.
 - Prepare upgrade guide: prerequisites, re-index steps, verification commands, rollback instructions.
 - Communicate change in CHANGELOG/PRD, emphasizing dependency footprint and operational shifts.
+- Nightly CI now runs `benchmark-indexer` (GitHub Actions) to compare fresh LevelDB runs against the checked-in baseline and fail on regressions over the configured thresholds.
 
 ## Open Questions
 - Storage format for multi-value lookups (embedded secondary indices vs denormalized keys).

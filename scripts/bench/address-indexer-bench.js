@@ -65,7 +65,6 @@ async function measureReads(indexer, addresses, iterations) {
   for (let iter = 0; iter < iterations; iter += 1) {
     const summaryStart = performance.now();
     for (const address of addresses) {
-      // eslint-disable-next-line no-await-in-loop
       const summary = await indexer.getAddressSummary(address);
       summaries.push(summary);
     }
@@ -73,7 +72,6 @@ async function measureReads(indexer, addresses, iterations) {
 
     const txStart = performance.now();
     for (const address of addresses) {
-      // eslint-disable-next-line no-await-in-loop
       const data = await indexer.getAddressTransactions(address, { page: 1, pageSize: 25 });
       transactions.push(data);
     }
@@ -81,7 +79,6 @@ async function measureReads(indexer, addresses, iterations) {
 
     const utxoStart = performance.now();
     for (const address of addresses) {
-      // eslint-disable-next-line no-await-in-loop
       const data = await indexer.getAddressUtxos(address);
       utxos.push(data);
     }
@@ -116,7 +113,6 @@ async function run() {
 
   if (options.warmups > 0 && sampleAddresses.length > 0) {
     for (let i = 0; i < options.warmups; i += 1) {
-      // eslint-disable-next-line no-await-in-loop
       await measureReads(indexer, sampleAddresses, 1);
     }
   }
@@ -157,7 +153,6 @@ async function run() {
 }
 
 run().catch((error) => {
-  // eslint-disable-next-line no-console
   console.error('Benchmark failed:', error);
   process.exitCode = 1;
 });

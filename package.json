@@ -19,7 +19,9 @@
     "test:integration": "vitest run --dir test/integration",
     "coverage": "vitest run --coverage",
     "test:regtest": "node scripts/regtest/smoke.js",
-    "ci": "npm run lint && npm run typecheck && npm run coverage"
+    "ci": "npm run lint && npm run typecheck && npm run coverage",
+    "bench:address": "node scripts/bench/run-ci.js",
+    "bench:compare": "node scripts/bench/compare-results.js --current bench/current-results.json --baseline bench/leveldb-results.json"
   },
   "repository": {
     "type": "git",
