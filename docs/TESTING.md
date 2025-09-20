@@ -98,7 +98,7 @@ Keep this document updated as new features land or testing strategy evolves.
    ADDRESS_INDEX_PATH=./data/address-index.db
    ADDRESS_XPUB_GAP_LIMIT=20
    ```
-2. Start the explorer and monitor logs for `addressIndexer.sync.complete`. Initial sync can take time depending on chain size.
+2. Start the explorer and monitor logs for `addressIndexer.sync.complete` (or `addressIndexer.sync.halted` if you intentionally stop it mid-way). Initial sync can take time depending on chain size.
 3. Once synced, visit `/address/<known-address>` to verify balances, UTXOs, and transaction listings. Cross-check against `bitcoin-cli listunspent` for accuracy.
 4. For xpubs, load `/xpub/<xpub>`; ensure derived addresses and totals align with wallet data. Adjust `ADDRESS_XPUB_GAP_LIMIT` if expected addresses fall outside the scanned range.
 5. Optional: on regtest, interrupt the explorer mid-sync (Ctrl+C) and restart; the indexer should resume from the last logged height without replaying from genesis.

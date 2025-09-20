@@ -101,7 +101,7 @@
  - Provide cleanup script/env to disable and purge index.
 
 ## Initial Sync Resilience Plan
-- **Failure mode verification**: simulate process crashes and signal-driven shutdowns during initial sync to document which checkpoints persist today; capture findings in WORKLOG and use them as regression tests.
+- **Failure mode verification**: simulate process crashes and signal-driven shutdowns during initial sync to document which checkpoints persist today; capture findings in WORKLOG and use them as regression tests. Watch for new log events such as `addressIndexer.sync.halted` during these runs.
 - **Atomic checkpoints**: finish each block inside a single SQLite transaction that writes both data rows and the `metadata` height/hash, followed by a WAL checkpoint/sync configuration tuned for bootstrap mode.
 - **Startup reconciliation**: on boot, compare the stored `last_processed_height/hash` with the highest block represented in `addresses/address_txs`; if inconsistent, roll back to the last clean height before resuming.
 - **Graceful shutdown**: add signal handlers so the indexer flushes in-flight blocks (stop fetching, commit current work, persist checkpoints) before the process exits.
