@@ -47,10 +47,12 @@ This guide captures manual and automated checks for the near-term feature bundle
 - **Quality Gate:** `npm run ci` (lint → typecheck → coverage) for local parity with GitHub Actions.
 - **Regtest Smoke:** `npm run test:regtest`
   - Requires `bitcoind` in PATH.
-  - Validates end-to-end flows (ZMQ, mempool updates, cache invalidation) against a temporary regtest node.
+  - Validates end-to-end flows (ZMQ, mempool updates, cache invalidation, address explorer) against a temporary regtest node.
   - Optional toggles:
     - `REGTEST_SCRAPE_METRICS=true` — scrape `/metrics` during the run.
     - `REGTEST_ADDRESS_CHECK=true` — enable the address/xpub explorer, wait for indexer sync, and assert `/address` + `/api/v1/address` + `/xpub` responses.
+  - The harness now uses an isolated LevelDB path per run and blocks on the address indexer catching up before issuing explorer assertions. When Core returns short-lived `getblock` misses the indexer retries automatically.
+  - Descriptor-derived keys that are not extended (`xpub`/`tpub`/etc.) are still exercised via the address endpoints; xpub assertions are skipped with a warning in those cases.
 - **Benchmark Guardrail:**
   - `npm run bench:address` — Seeds a deterministic regtest dataset, runs the LevelDB indexer benchmark harness, and writes results to `bench/current-results.json`.
   - `npm run bench:compare` — Compares the latest metrics against the baseline (`bench/leveldb-results.json`) and fails if ingest/read deltas exceed configured tolerances. Relative thresholds remain configurable via `BENCH_MAX_*_DELTA`; use the optional `BENCH_MAX_*_ABS` env vars (milliseconds) to ignore tiny absolute differences caused by CI noise.

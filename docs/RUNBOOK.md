@@ -92,6 +92,7 @@ npm run test:regtest
 - The home dashboard and mempool page include progressive enhancement scripts that listen for notifications and refetch data through existing APIs. Browsers without WebSocket support continue to rely on TTL caching.
 - Recommended to keep the gateway behind LAN/firewall; if exposing beyond LAN, front it with an authenticated reverse proxy (out of scope for MVP).
 - Optional: when running `npm run test:regtest`, set `REGTEST_WS_CHECK=true` to verify WebSocket broadcasts end-to-end.
+- The smoke harness creates a dedicated regtest datadir (including LevelDB index path) for each run, waits for the address indexer to catch up, and retries transient `getblock` misses. When Core descriptors do not yield an extended xpub the suite logs a warning and skips the xpub assertions.
 
 ## Address/Xpub Explorer
 - Enable the feature with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (default `./data/address-index`) using LevelDB storage.

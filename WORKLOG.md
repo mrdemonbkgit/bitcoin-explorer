@@ -34,6 +34,28 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
 
 ## 2025-09-20
 ### Done
+- fix(bench): add absolute tolerance thresholds to compare guard — (Commit 3c32c4d)
+  - Context: `scripts/bench/compare-results.js` now supports millisecond absolute tolerances so nightly LevelDB benchmarks ignore tiny variance; README/TESTING mention the new knobs.
+- test(regtest): stabilize address explorer coverage — (Commits 81cbb4c, 1d8ca4f, 4bb667c)
+  - Context: Regtest harness provisions per-run LevelDB paths, retries `getblock` misses, waits for indexer catch-up, and skips xpub assertions when descriptors lack extended keys; docs updated with the new behavior.
+
+### In Progress
+- QA: add failure-injection coverage for LevelDB adapter restart scenarios (Refs Task Tracker in `docs/design/address-explorer.md`).
+
+### Next
+- Monitor nightly `benchmark-indexer` run to confirm the adjusted tolerances still flag real regressions while passing under normal variance.
+- Evaluate capturing an extended xpub during smoke runs to re-enable full xpub assertions.
+
+### Blockers/Risks
+- Regtest wallet descriptors may not expose extended keys; address explorer API is still verified, but xpub coverage remains best-effort until deterministic descriptors are available.
+
+### Notes
+- Updated README/RUNBOOK/TESTING with the new harness expectations (unique index dir, indexer wait loop, optional xpub skip message).
+
+---
+
+## 2025-09-20
+### Done
 - chore(address): document leveldb benchmark results — (Commit 35f8c90)
   - Context: Added reusable harness outputs (`bench/leveldb-results.json`, `bench/sqlite-results.json`) and captured comparative metrics in `docs/design/address-explorer-leveldb-migration.md`.
 - ci(address): add nightly indexer benchmark — (Commit d08f765)

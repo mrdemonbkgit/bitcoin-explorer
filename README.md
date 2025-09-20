@@ -53,7 +53,7 @@ npm run build
 - `npm run lint` — ESLint baseline for Node 24 with `eslint-plugin-n`
 - `npm run typecheck` — TypeScript `--noEmit` with `checkJs` coverage
 - `npm run test` / `npm run coverage` — Vitest unit tests plus Supertest-backed integration tests
-- `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary). Set `REGTEST_SCRAPE_METRICS=true` to scrape `/metrics`, `REGTEST_ADDRESS_CHECK=true` to exercise the address/xpub explorer, and interrupt/restart the app mid-sync to confirm checkpoints resume cleanly.
+- `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary). Set `REGTEST_SCRAPE_METRICS=true` to scrape `/metrics`, `REGTEST_ADDRESS_CHECK=true` to exercise the address/xpub explorer (the harness now provisions an isolated LevelDB path and waits for the indexer to catch up), and interrupt/restart the app mid-sync to confirm checkpoints resume cleanly.
 - `npm run build` — Creates `dist/` with runtime assets and production dependencies
 - `npm run bench:address` — Seeds a regtest node and captures LevelDB ingest/read metrics (writes `bench/current-results.json`)
 - `npm run bench:compare` — Compares the latest metrics against the checked-in baseline (`bench/leveldb-results.json`). Tune relative thresholds with `BENCH_MAX_*_DELTA` or add `BENCH_MAX_*_ABS` (milliseconds) to tolerate tiny absolute swings during CI runs.
