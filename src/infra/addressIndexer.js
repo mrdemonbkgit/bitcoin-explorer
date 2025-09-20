@@ -17,6 +17,48 @@ const PREFIXES = {
   TX: 'tx!'
 };
 
+const DIRECTION_IN = 'in';
+const DIRECTION_OUT = 'out';
+
+/**
+ * @typedef {Object} AddressSummary
+ * @property {string} address
+ * @property {number|null} firstSeenHeight
+ * @property {number|null} lastSeenHeight
+ * @property {number} totalReceivedSat
+ * @property {number} totalSentSat
+ * @property {number} balanceSat
+ * @property {number} txCount
+ * @property {number} utxoCount
+ * @property {number} utxoValueSat
+ */
+
+/**
+ * @typedef {Object} AddressUtxoRecord
+ * @property {string} address
+ * @property {string} txid
+ * @property {number} vout
+ * @property {number} valueSat
+ * @property {number|null} height
+ */
+
+/**
+ * @typedef {Object} AddressTxRecord
+ * @property {string} address
+ * @property {string} txid
+ * @property {number|null} height
+ * @property {typeof DIRECTION_IN | typeof DIRECTION_OUT} direction
+ * @property {number|null} valueSat
+ * @property {number} ioIndex
+ * @property {number|null} timestamp
+ */
+
+/**
+ * @typedef {{ type: 'put'; key: string; value: unknown }} BatchPutOperation
+ * @typedef {{ type: 'del'; key: string }} BatchDelOperation
+ * @typedef {BatchPutOperation | BatchDelOperation} BatchOperation
+ */
+
 let singletonIndexer = null;
 
 function sats(value) {
@@ -66,7 +108,8 @@ function padIndex(index) {
 
 function createSummary(address, height) {
   const numericHeight = typeof height === 'number' ? height : null;
-  return {
+  /** @type {AddressSummary} */
+  const summary = {
     address,
     firstSeenHeight: numericHeight,
     lastSeenHeight: numericHeight,
@@ -77,8 +120,12 @@ function createSummary(address, height) {
     utxoCount: 0,
     utxoValueSat: 0
   };
+  return summary;
 }
 
+/**
+ * @param {AddressSummary} summary
+ */
 function sanitizeSummary(summary) {
   const clone = { ...summary };
   clone.balanceSat = Math.max(0, clone.balanceSat);
@@ -97,6 +144,7 @@ export class AddressIndexer {
     this.dbPath = dbPath ?? path.resolve('./data/address-index');
     this.gapLimit = gapLimit ?? 20;
     this.logger = logger ?? getLogger().child({ module: 'address-indexer' });
+    /** @type {import('level').Level<string, unknown> | null} */
     this.db = null;
     this.subscriptions = [];
     this.prevoutCache = new Map();
@@ -108,7 +156,9 @@ export class AddressIndexer {
 
   async open() {
     ensureDirectory(this.dbPath);
-    this.db = new Level(this.dbPath, { valueEncoding: 'json' });
+    /** @type {import('level').Level<string, unknown>} */
+    const db = new Level(this.dbPath, { valueEncoding: 'json' });
+    this.db = db;
     await this.db.open();
   }
 
@@ -188,8 +238,13 @@ export class AddressIndexer {
     }
   }
 
+  /**
+   * @param {string} key
+   * @param {unknown} value
+   * @param {BatchOperation[]} [batch]
+   */
   async setMetadata(key, value, batch) {
-    const operation = { type: 'put', key: metaKey(key), value };
+    const operation = /** @type {BatchPutOperation} */ ({ type: 'put', key: metaKey(key), value });
     if (batch) {
       batch.push(operation);
     } else if (this.db) {
@@ -280,7 +335,9 @@ export class AddressIndexer {
     const block = await rpcCall('getblock', [hash, 2]);
     const height = expectedHeight ?? block.height;
     const timestamp = block.time ?? null;
+    /** @type {BatchOperation[]} */
     const operations = [];
+    /** @type {Map<string, AddressSummary>} */
     const summaries = new Map();
 
     for (const transaction of block.tx || []) {
@@ -312,30 +369,30 @@ export class AddressIndexer {
           summary.utxoCount += 1;
           summary.utxoValueSat += valueSat;
 
-          operations.push({
+          operations.push(/** @type {BatchPutOperation} */ ({
             type: 'put',
             key: utxoKey(address, transaction.txid, output.n ?? 0),
-            value: {
+            value: /** @type {AddressUtxoRecord} */ ({
               address,
               txid: transaction.txid,
               vout: output.n ?? 0,
               valueSat,
               height
-            }
-          });
-          operations.push({
+            })
+          }));
+          operations.push(/** @type {BatchPutOperation} */ ({
             type: 'put',
-            key: txKey(address, height, 'in', output.n ?? 0, transaction.txid),
-            value: {
+            key: txKey(address, height, DIRECTION_IN, output.n ?? 0, transaction.txid),
+            value: /** @type {AddressTxRecord} */ ({
               address,
               txid: transaction.txid,
               height,
-              direction: 'in',
+              direction: DIRECTION_IN,
               valueSat,
               ioIndex: output.n ?? 0,
               timestamp
-            }
-          });
+            })
+          }));
         }
       }
 
@@ -372,31 +429,42 @@ export class AddressIndexer {
     }
 
     for (const [address, summary] of summaries.entries()) {
-      operations.push({
+      operations.push(/** @type {BatchPutOperation} */ ({
         type: 'put',
         key: summaryKey(address),
         value: sanitizeSummary(summary)
-      });
+      }));
     }
 
     await this.setMetadata('last_processed_hash', hash, operations);
     await this.setMetadata('last_processed_height', height, operations);
-    await this.db.batch(operations, { atomic: true });
+    await this.db.batch(operations);
   }
 
+  /**
+   * @param {string} address
+   * @param {number|null} height
+   * @param {Map<string, AddressSummary>} cache
+   * @returns {Promise<AddressSummary>}
+   */
   async getSummaryForMutation(address, height, cache) {
     if (cache.has(address)) {
       return cache.get(address);
     }
+    /** @type {AddressSummary} */
+    /** @type {AddressSummary | undefined} */
     let summary;
     try {
-      summary = await this.db.get(summaryKey(address));
+      summary = /** @type {AddressSummary} */ (await this.db.get(summaryKey(address)));
     } catch (error) {
       if (isNotFound(error)) {
         summary = createSummary(address, height);
       } else {
         throw error;
       }
+    }
+    if (!summary) {
+      summary = createSummary(address, height);
     }
     if (typeof height === 'number') {
       summary.firstSeenHeight = summary.firstSeenHeight != null ? Math.min(summary.firstSeenHeight, height) : height;
@@ -406,6 +474,20 @@ export class AddressIndexer {
     return summary;
   }
 
+  /**
+   * @param {{
+   *  address: string;
+   *  currentTxid: string;
+   *  prevTxid: string;
+   *  prevVout: number;
+   *  valueSat: number;
+   *  height: number | null;
+   *  timestamp: number | null;
+   *  incrementTx: boolean;
+   *  summary: AddressSummary;
+   * }} payload
+   * @param {BatchOperation[]} operations
+   */
   applyOutbound({ address, currentTxid, prevTxid, prevVout, valueSat, height, timestamp, incrementTx, summary }, operations) {
     summary.totalSentSat += valueSat;
     summary.balanceSat -= valueSat;
@@ -418,23 +500,23 @@ export class AddressIndexer {
       summary.lastSeenHeight = summary.lastSeenHeight != null ? Math.max(summary.lastSeenHeight, height) : height;
     }
 
-    operations.push({
+    operations.push(/** @type {BatchDelOperation} */ ({
       type: 'del',
       key: utxoKey(address, prevTxid, prevVout)
-    });
-    operations.push({
+    }));
+    operations.push(/** @type {BatchPutOperation} */ ({
       type: 'put',
-      key: txKey(address, height, 'out', prevVout, currentTxid),
-      value: {
+      key: txKey(address, height, DIRECTION_OUT, prevVout, currentTxid),
+      value: /** @type {AddressTxRecord} */ ({
         address,
         txid: currentTxid,
         height,
-        direction: 'out',
+        direction: DIRECTION_OUT,
         valueSat,
         ioIndex: prevVout,
         timestamp
-      }
-    });
+      })
+    }));
   }
 
   async fetchPrevouts(transaction) {
@@ -503,7 +585,7 @@ export class AddressIndexer {
   // Query helpers
   async getAddressSummary(address) {
     try {
-      const summary = await this.db.get(summaryKey(address));
+      const summary = /** @type {AddressSummary} */ (await this.db.get(summaryKey(address)));
       return summary;
     } catch (error) {
       if (isNotFound(error)) {
@@ -518,6 +600,7 @@ export class AddressIndexer {
     const safePage = Math.max(1, page);
     const { gte, lt } = prefixRange(`${PREFIXES.TX}${address}!`);
     const iterator = this.db.iterator({ gte, lt, reverse: true });
+    /** @type {AddressTxRecord[]} */
     const rows = [];
     let totalRows = 0;
     const startIndex = (safePage - 1) * safePageSize;
@@ -529,7 +612,7 @@ export class AddressIndexer {
           continue;
         }
         if (rows.length < safePageSize) {
-          rows.push(value);
+          rows.push(/** @type {AddressTxRecord} */ (value));
         } else {
           break;
         }
@@ -551,10 +634,11 @@ export class AddressIndexer {
   async getAddressUtxos(address) {
     const { gte, lt } = prefixRange(`${PREFIXES.UTXO}${address}!`);
     const iterator = this.db.iterator({ gte, lt });
+    /** @type {AddressUtxoRecord[]} */
     const utxos = [];
     try {
       for await (const [, value] of iterator) {
-        utxos.push(value);
+        utxos.push(/** @type {AddressUtxoRecord} */ (value));
       }
     } finally {
       await iterator.close();
