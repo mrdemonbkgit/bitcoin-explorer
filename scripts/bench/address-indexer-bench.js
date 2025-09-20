@@ -5,8 +5,20 @@ import { AddressIndexer } from '../../src/infra/addressIndexer.js';
 import { getLogger } from '../../src/infra/logger.js';
 import { rpcCall } from '../../src/rpc.js';
 
+/**
+ * @typedef {Object} BenchOptions
+ * @property {number} sample
+ * @property {number} warmups
+ * @property {number} iterations
+ * @property {string | null} output
+ */
+
+/**
+ * @param {string[]} argv
+ * @returns {BenchOptions}
+ */
 function parseArgs(argv) {
-  /** @type {Record<string, string | number | boolean>} */
+  /** @type {BenchOptions} */
   const options = {
     sample: 100,
     warmups: 0,
@@ -145,8 +157,9 @@ async function run() {
   };
 
   if (options.output) {
-    fs.mkdirSync(path.dirname(options.output), { recursive: true });
-    fs.writeFileSync(options.output, JSON.stringify(result, null, 2));
+    const outputPath = options.output;
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
   }
 
   console.log(JSON.stringify(result, null, 2));

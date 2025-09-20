@@ -17,6 +17,9 @@ const INDEX_PATH = process.env.BENCH_INDEX_PATH || 'bench/ci-index';
 const MAX_TX = Number(process.env.BENCH_TX_COUNT || 600);
 const SEND_BATCH_CONFIRM_INTERVAL = Number(process.env.BENCH_CONFIRM_EVERY || 20);
 
+/**
+ * @typedef {Error & { code?: number }} RpcError
+ */
 function log(message, ...rest) {
   console.log(`[bench-ci] ${message}`, ...rest);
 }
@@ -29,8 +32,9 @@ function waitForFile(filePath, attempts = 50, intervalMs = 200) {
         await readFile(filePath, 'utf8');
         resolve();
       } catch (error) {
-        if (error.code !== 'ENOENT') {
-          reject(error);
+        const err = /** @type {NodeJS.ErrnoException | Error} */ (error);
+        if (err instanceof Error && 'code' in err && err.code !== 'ENOENT') {
+          reject(err);
           return;
         }
         remaining -= 1;
@@ -74,8 +78,8 @@ async function rpc(auth, method, params = []) {
 
   const payload = await response.json();
   if (payload.error) {
-    const error = new Error(payload.error.message || 'RPC error');
-    error.code = payload.error.code;
+    const error = /** @type {RpcError} */ (new Error(payload.error.message || 'RPC error'));
+    error.code = typeof payload.error.code === 'number' ? payload.error.code : undefined;
     throw error;
   }
   return payload.result;
@@ -87,8 +91,9 @@ async function waitForRpc(auth, attempts = 40, intervalMs = 500) {
       await rpc(auth, 'getblockchaininfo');
       return;
     } catch (error) {
+      const err = /** @type {Error} */ (error instanceof Error ? error : new Error(String(error)));
       if (i === attempts - 1) {
-        throw new Error(`Timed out waiting for bitcoind RPC: ${error.message}`);
+        throw new Error(`Timed out waiting for bitcoind RPC: ${err.message}`);
       }
       await delay(intervalMs);
     }
@@ -100,8 +105,9 @@ async function seedChain(auth) {
   try {
     await rpc(auth, 'createwallet', ['bench-wallet']);
   } catch (error) {
-    if (error.code !== -4) {
-      throw error;
+    const rpcError = /** @type {RpcError} */ (error instanceof Error ? error : new Error(String(error)));
+    if (rpcError.code !== -4) {
+      throw rpcError;
     }
   }
 
