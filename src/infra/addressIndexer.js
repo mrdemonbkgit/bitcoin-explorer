@@ -229,6 +229,7 @@ export class AddressIndexer {
     this.prevoutConcurrency = Math.max(1, config.address.indexerConcurrency);
     this.levelCacheBytes = config.address.levelCacheBytes;
     this.levelWriteBufferBytes = config.address.levelWriteBufferBytes;
+    this.batchBlockCount = Math.max(1, config.address.batchBlockCount);
     this.stopping = false;
     this.signalHandlers = [];
     this.syncInProgress = false;
@@ -278,7 +279,8 @@ export class AddressIndexer {
       levelCacheBytes: this.levelCacheBytes,
       levelWriteBufferBytes: this.levelWriteBufferBytes,
       prevoutCacheMax: this.prevoutCacheMax,
-      prevoutCacheTtl: this.prevoutCacheTtl
+      prevoutCacheTtl: this.prevoutCacheTtl,
+      batchBlockCount: this.batchBlockCount
     };
   }
 
@@ -371,7 +373,8 @@ export class AddressIndexer {
         prevoutCacheMax: this.prevoutCacheMax,
         prevoutCacheTtl: this.prevoutCacheTtl,
         levelCacheBytes: this.levelCacheBytes,
-        levelWriteBufferBytes: this.levelWriteBufferBytes
+        levelWriteBufferBytes: this.levelWriteBufferBytes,
+        batchBlockCount: this.batchBlockCount
       }
     }, 'Address indexer starting');
     this.registerSignalHandlers();
@@ -396,10 +399,44 @@ export class AddressIndexer {
       }
     }, 'Address index initial sync starting');
 
+    const batchingEnabled = this.batchBlockCount > 1;
+    let pendingOperations = [];
+    let pendingBlocks = 0;
+    let pendingTx = 0;
+    let pendingHash = null;
+    let pendingHeight = null;
+
+    const flushPending = async () => {
+      if (pendingBlocks === 0) {
+        return;
+      }
+      await this.commitOperations(pendingOperations, {
+        hash: pendingHash,
+        height: pendingHeight,
+        blocks: pendingBlocks,
+        txCount: pendingTx
+      });
+      pendingOperations = [];
+      pendingBlocks = 0;
+      pendingTx = 0;
+      pendingHash = null;
+      pendingHeight = null;
+    };
+
     while (!this.stopping && nextHeight <= bestHeight) {
       this.syncInProgress = true;
       try {
-        await this.processBlockHeight(nextHeight);
+        const result = await this.processBlockHeight(nextHeight, batchingEnabled ? { collect: true } : undefined);
+        if (batchingEnabled && result?.operations) {
+          pendingOperations.push(...result.operations);
+          pendingBlocks += 1;
+          pendingTx += result.txCount ?? 0;
+          pendingHash = result.hash ?? pendingHash;
+          pendingHeight = result.height ?? pendingHeight;
+          if (pendingBlocks >= this.batchBlockCount) {
+            await flushPending();
+          }
+        }
       } finally {
         this.syncInProgress = false;
       }
@@ -421,6 +458,10 @@ export class AddressIndexer {
       nextHeight += 1;
     }
 
+    if (batchingEnabled) {
+      await flushPending();
+    }
+
     if (this.stopping) {
       this.logger.info({
         context: {
@@ -438,12 +479,13 @@ export class AddressIndexer {
     }
   }
 
-  async processBlockHeight(height) {
+  async processBlockHeight(height, options = {}) {
     const hash = await rpcCall('getblockhash', [height]);
-    await this.processBlockHash(hash, height);
+    return this.processBlockHash(hash, height, options);
   }
 
-  async processBlockHash(hash, expectedHeight = null) {
+  async processBlockHash(hash, expectedHeight = null, options = {}) {
+    const { collect = false } = options;
     if (this.stopping || !this.db) {
       this.logger.debug({ context: { event: 'addressIndexer.block.skip', hash, reason: this.db ? 'stopping' : 'db-closed' } }, 'Skipping block processing during shutdown');
       return;
@@ -564,21 +606,19 @@ export class AddressIndexer {
       await this.setMetadata('last_processed_hash', hash, operations);
       await this.setMetadata('last_processed_height', height, operations);
 
-      const batchStartedAt = now();
-      await this.db.batch(operations);
-      const batchDuration = durationMs(batchStartedAt);
-      this.logger.debug({
-        context: {
-          event: 'addressIndexer.db.batch.duration',
-          hash,
-          height,
-          operations: operations.length,
-          durationMs: batchDuration
-        }
-      }, 'Address indexer committed LevelDB batch');
-
       this.syncStats.blocksProcessed += 1;
       this.syncStats.transactionsProcessed += txCount;
+
+      if (collect) {
+        return { operations, height, txCount, hash };
+      }
+
+      await this.commitOperations(operations, {
+        hash,
+        height,
+        blocks: 1,
+        txCount
+      });
     } catch (error) {
       outcome = 'error';
       throw error;
@@ -596,6 +636,26 @@ export class AddressIndexer {
       }, 'Address indexer block timing sample');
       metrics.recordAddressIndexerBlockDuration({ outcome, durationMs: totalDuration });
     }
+  }
+
+  async commitOperations(operations, { hash, height, blocks = 1, txCount = 0 }) {
+    if (!operations?.length || !this.db) {
+      return;
+    }
+    const batchStartedAt = now();
+    await this.db.batch(operations);
+    const batchDuration = durationMs(batchStartedAt);
+    this.logger.debug({
+      context: {
+        event: 'addressIndexer.db.batch.duration',
+        hash,
+        height,
+        blocks,
+        txCount,
+        operations: operations.length,
+        durationMs: batchDuration
+      }
+    }, 'Address indexer committed LevelDB batch');
   }
 
   /**

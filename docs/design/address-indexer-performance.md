@@ -50,7 +50,7 @@ The LevelDB-backed address indexer currently syncs at ~1 block/sec on a local no
 ### 3. LevelDB Tuning (Dev)
 1. Evaluate Level constructor options (e.g., `cacheSize`, `writeBufferSize`). Benchmark safe defaults for typical hardware. ✅ — Level now honours `ADDRESS_LEVEL_CACHE_MB` (default 32) and `ADDRESS_LEVEL_WRITE_BUFFER_MB` (default 8) when opening the database.
 2. Ensure LevelDB directory resides on SSD by documenting in RUNBOOK and warning in logs if heuristics indicate spinning disk (optional). ✅ — RUNBOOK notes SSD expectation and new tuning knobs; startup logs show cache/buffer values to aid ops verification.
-3. Consider grouping multiple blocks per batch when safe (e.g., every 5 blocks) to reduce overhead. 🔄 — deferred pending data from new cache/concurrency metrics (tracked for future iteration).
+3. Consider grouping multiple blocks per batch when safe (e.g., every 5 blocks) to reduce overhead. ✅ — `ADDRESS_INDEXER_BATCH_BLOCKS` (default 1) batches consecutive blocks during initial sync; logs include aggregated batch size to monitor LevelDB behaviour.
 
 ### 4. Parallelism Enhancements (Dev)
 1. Prototype worker pool for prevout fetching using `Promise.allSettled` limited by concurrency config.

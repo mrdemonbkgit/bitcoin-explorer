@@ -64,7 +64,8 @@ const ConfigSchema = z.object({
   ADDRESS_PREVOUT_CACHE_MAX: z.coerce.number().int().positive().default(2000),
   ADDRESS_PREVOUT_CACHE_TTL: z.coerce.number().int().nonnegative().default(60000),
   ADDRESS_LEVEL_CACHE_MB: z.coerce.number().nonnegative().default(32),
-  ADDRESS_LEVEL_WRITE_BUFFER_MB: z.coerce.number().nonnegative().default(8)
+  ADDRESS_LEVEL_WRITE_BUFFER_MB: z.coerce.number().nonnegative().default(8),
+  ADDRESS_INDEXER_BATCH_BLOCKS: z.coerce.number().int().positive().default(1)
 }).superRefine((data, ctx) => {
   const hasCookie = Boolean(data.BITCOIN_RPC_COOKIE);
   const hasUserPass = Boolean(data.BITCOIN_RPC_USER && data.BITCOIN_RPC_PASSWORD);
@@ -177,6 +178,7 @@ export const config = Object.freeze({
     prevoutCacheMax: cfg.ADDRESS_PREVOUT_CACHE_MAX,
     prevoutCacheTtl: cfg.ADDRESS_PREVOUT_CACHE_TTL,
     levelCacheBytes: mbToBytes(cfg.ADDRESS_LEVEL_CACHE_MB),
-    levelWriteBufferBytes: mbToBytes(cfg.ADDRESS_LEVEL_WRITE_BUFFER_MB)
+    levelWriteBufferBytes: mbToBytes(cfg.ADDRESS_LEVEL_WRITE_BUFFER_MB),
+    batchBlockCount: cfg.ADDRESS_INDEXER_BATCH_BLOCKS
   }
 });

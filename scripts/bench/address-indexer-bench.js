@@ -175,6 +175,7 @@ async function run() {
     prevoutCacheTtlMs: toNumber(process.env.ADDRESS_PREVOUT_CACHE_TTL) ?? syncStats?.prevoutCacheTtl ?? null,
     levelCacheMb: toNumber(process.env.ADDRESS_LEVEL_CACHE_MB) ?? (syncStats?.levelCacheBytes ? syncStats.levelCacheBytes / (1024 * 1024) : null),
     levelWriteBufferMb: toNumber(process.env.ADDRESS_LEVEL_WRITE_BUFFER_MB) ?? (syncStats?.levelWriteBufferBytes ? syncStats.levelWriteBufferBytes / (1024 * 1024) : null),
+    batchBlocks: toNumber(process.env.ADDRESS_INDEXER_BATCH_BLOCKS) ?? syncStats?.batchBlockCount ?? null,
     rpcMaxSockets: toNumber(process.env.BITCOIN_RPC_MAX_SOCKETS) ?? null
   };
 

@@ -49,8 +49,8 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
 
 ### Notes
 - `.env` guidance now keeps optional secrets out of default installs while signaling when the token helps automation.
-- Captured new LevelDB benchmark output (`bench/current-results.json`) with throughput fields (131.7 blocks/sec, 481.2 tx/sec) to anchor upcoming optimisation work.
-- Introduced RPC pooling + configurable prevout workers/cache (`BITCOIN_RPC_MAX_SOCKETS`, `ADDRESS_INDEXER_CONCURRENCY`, `ADDRESS_PREVOUT_CACHE_*`) and LevelDB tuning defaults (`ADDRESS_LEVEL_CACHE_MB`, `ADDRESS_LEVEL_WRITE_BUFFER_MB`) to support the next optimisation experiments.
+- Captured new LevelDB benchmark output (`bench/current-results.json`) with throughput fields (126.5 blocks/sec, 462.5 tx/sec) to anchor upcoming optimisation work.
+- Introduced RPC pooling + configurable prevout workers/cache (`BITCOIN_RPC_MAX_SOCKETS`, `ADDRESS_INDEXER_CONCURRENCY`, `ADDRESS_PREVOUT_CACHE_*`), LevelDB tuning defaults (`ADDRESS_LEVEL_CACHE_MB`, `ADDRESS_LEVEL_WRITE_BUFFER_MB`), and block batching (`ADDRESS_INDEXER_BATCH_BLOCKS`) to support the next optimisation experiments.
 
 ---
 

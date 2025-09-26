@@ -97,6 +97,7 @@ ADDRESS_PREVOUT_CACHE_MAX=2000
 ADDRESS_PREVOUT_CACHE_TTL=60000
 ADDRESS_LEVEL_CACHE_MB=32
 ADDRESS_LEVEL_WRITE_BUFFER_MB=8
+ADDRESS_INDEXER_BATCH_BLOCKS=1
 GITHUB_TOKEN=
 ```
 
@@ -108,7 +109,7 @@ GITHUB_TOKEN=
 - Toggle the mempool dashboard entirely via `FEATURE_MEMPOOL_DASHBOARD=false` if operators prefer to disable the route.
 - Enable the Prometheus exporter with `METRICS_ENABLED=true`. The endpoint defaults to `/metrics` on the main bind; adjust via `METRICS_PATH`. Set `METRICS_INCLUDE_DEFAULT=true` to expose Node.js process metrics.
 - Enable LAN-only WebSocket pushes with `WEBSOCKET_ENABLED=true`. Clients use the configured `WEBSOCKET_PATH` (default `/ws`) and reuse the main server port unless `WEBSOCKET_PORT` is set. When active, the home and mempool pages hydrate with near-real-time updates while remaining fully functional without WebSockets.
-- Enable the address/xpub explorer with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (LevelDB directory), uses `ADDRESS_INDEXER_CONCURRENCY` to control prevout fetch workers (default 4), keeps short-lived prevout responses in-memory via `ADDRESS_PREVOUT_CACHE_MAX` / `ADDRESS_PREVOUT_CACHE_TTL`, and derives xpub branches using `ADDRESS_XPUB_GAP_LIMIT` (default 20). LevelDB tuning defaults to `ADDRESS_LEVEL_CACHE_MB=32` / `ADDRESS_LEVEL_WRITE_BUFFER_MB=8`; adjust upward for SSD-backed deployments if memory allows. Initial sync walks the chain via RPC (checkpoints persist after restarts); expect runtime proportional to chain size.
+- Enable the address/xpub explorer with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (LevelDB directory), uses `ADDRESS_INDEXER_CONCURRENCY` to control prevout fetch workers (default 4), keeps short-lived prevout responses in-memory via `ADDRESS_PREVOUT_CACHE_MAX` / `ADDRESS_PREVOUT_CACHE_TTL`, and derives xpub branches using `ADDRESS_XPUB_GAP_LIMIT` (default 20). LevelDB tuning defaults to `ADDRESS_LEVEL_CACHE_MB=32` / `ADDRESS_LEVEL_WRITE_BUFFER_MB=8`; adjust upward for SSD-backed deployments if memory allows. Initial sync walks the chain via RPC (checkpoints persist after restarts); batching can group up to `ADDRESS_INDEXER_BATCH_BLOCKS` consecutive blocks per write (default 1) to trade memory for LevelDB throughput.
 - Supply `GITHUB_TOKEN` when automation needs GitHub API access (e.g., CI scripts or release tooling). Leave it blank for standard LAN deployments.
 
 ## Available Routes

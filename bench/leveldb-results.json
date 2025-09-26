@@ -1,26 +1,35 @@
 {
   "backend": "leveldb",
   "chainHeight": 226,
-  "ingestMs": 1716.3657239999998,
-  "ingestSeconds": 1.7163657239999999,
+  "ingestMs": 1786.0597300000002,
+  "ingestSeconds": 1.78605973,
   "sampleCount": 50,
   "iterations": 3,
+  "settings": {
+    "prevoutConcurrency": 4,
+    "prevoutCacheMax": 2000,
+    "prevoutCacheTtlMs": 60000,
+    "levelCacheMb": 32,
+    "levelWriteBufferMb": 8,
+    "batchBlocks": 1,
+    "rpcMaxSockets": null
+  },
   "sync": {
     "blocksProcessed": 226,
     "transactionsProcessed": 826,
     "prevoutCacheHits": 0,
-    "prevoutRpcCalls": 991
+    "prevoutRpcCalls": 926
   },
   "throughput": {
-    "blocksPerSecond": 131.67356865721237,
-    "transactionsPerSecond": 481.24941464981157
+    "blocksPerSecond": 126.53552185513975,
+    "transactionsPerSecond": 462.470535629847
   },
   "reads": {
-    "summaryMs": 3.430974000000333,
-    "transactionsMs": 38.0742209999994,
-    "utxosMs": 20.177018999999746,
-    "summaryAvgMs": 0.02287316000000222,
-    "transactionsAvgMs": 0.253828139999996,
-    "utxosAvgMs": 0.1345134599999983
+    "summaryMs": 4.075801000000411,
+    "transactionsMs": 44.259007999999994,
+    "utxosMs": 25.42922200000021,
+    "summaryAvgMs": 0.027172006666669402,
+    "transactionsAvgMs": 0.2950600533333333,
+    "utxosAvgMs": 0.16952814666666807
   }
 }
