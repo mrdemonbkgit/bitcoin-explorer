@@ -489,6 +489,7 @@ export class AddressIndexer {
     let pendingHash = null;
     let pendingHeight = null;
     const batchSummaryCache = batchingEnabled ? new Map() : null;
+    const batchTouchedSummaries = batchingEnabled ? new Set() : null;
 
     const flushPending = async () => {
       if (pendingBlocks === 0) {
@@ -506,18 +507,29 @@ export class AddressIndexer {
       pendingHash = null;
       pendingHeight = null;
       batchSummaryCache?.clear();
+      batchTouchedSummaries?.clear();
     };
 
     while (!this.stopping && nextHeight <= bestHeight) {
       this.syncInProgress = true;
       try {
-        const result = await this.processBlockHeight(nextHeight, batchingEnabled ? { collect: true, summaryCache: batchSummaryCache } : undefined);
+        const result = await this.processBlockHeight(nextHeight, batchingEnabled ? { collect: true, summaryCache: batchSummaryCache, touchedSummaries: batchTouchedSummaries } : undefined);
         if (batchingEnabled && result?.operations) {
           pendingOperations.push(...result.operations);
           pendingBlocks += 1;
           pendingTx += result.txCount ?? 0;
           pendingHash = result.hash ?? pendingHash;
           pendingHeight = result.height ?? pendingHeight;
+          if (result.summaries && batchSummaryCache) {
+            for (const [address, summary] of result.summaries.entries()) {
+              batchSummaryCache.set(address, summary);
+            }
+          }
+          if (result.touchedSummaries && batchTouchedSummaries) {
+            for (const address of result.touchedSummaries) {
+              batchTouchedSummaries.add(address);
+            }
+          }
           if (pendingBlocks >= this.batchBlockCount) {
             await flushPending();
           }
@@ -570,7 +582,7 @@ export class AddressIndexer {
   }
 
   async processBlockHash(hash, expectedHeight = null, options = {}) {
-    const { collect = false, summaryCache = null } = options;
+    const { collect = false, summaryCache = null, touchedSummaries = null } = options;
     if (this.stopping || !this.db) {
       this.logger.debug({ context: { event: 'addressIndexer.block.skip', hash, reason: this.db ? 'stopping' : 'db-closed' } }, 'Skipping block processing during shutdown');
       return;
@@ -589,7 +601,7 @@ export class AddressIndexer {
       const operations = [];
       /** @type {Map<string, AddressSummary>} */
       const summaries = summaryCache ?? new Map();
-      const touchedSummaries = new Set();
+      const localTouched = touchedSummaries ?? new Set();
 
       txCount = Array.isArray(block.tx) ? block.tx.length : 0;
 
@@ -621,7 +633,7 @@ export class AddressIndexer {
             summary.balanceSat += valueSat;
             summary.utxoCount += 1;
             summary.utxoValueSat += valueSat;
-            touchedSummaries.add(address);
+            localTouched.add(address);
 
             operations.push(/** @type {BatchPutOperation} */ ({
               type: 'put',
@@ -677,13 +689,13 @@ export class AddressIndexer {
               timestamp,
               incrementTx,
               summary,
-              touchedSummaries
+              touchedSummaries: localTouched
             }, operations);
           }
         }
       }
 
-      for (const address of touchedSummaries) {
+      for (const address of localTouched) {
         const summary = summaries.get(address);
         if (!summary) {
           continue;
@@ -702,7 +714,7 @@ export class AddressIndexer {
       this.syncStats.transactionsProcessed += txCount;
 
       if (collect) {
-        return { operations, height, txCount, hash };
+        return { operations, height, txCount, hash, summaries: summaryCache ?? summaries, touchedSummaries: localTouched };
       }
 
       await this.commitOperations(operations, {
