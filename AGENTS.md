@@ -31,6 +31,17 @@
 - Ensures Task Tracker includes CI/CD, secrets, environment variables, and operational runbook tasks for any new work.
 - Logs CI/CD workflow changes, deployments, and operational notes in `WORKLOG.md`.
 
+## GitHub Operations
+- Export the `.env` variables in the active shell before running authenticated git commands: `set -a; source .env; set +a`.
+- Use the `.env`-provided `GITHUB_TOKEN` via an inline credential helper for pushes, fetches, and other authenticated operations.
+
+```bash
+set -a; source .env; set +a; git -c credential.helper="!f() { echo username=x-access-token; echo password=$GITHUB_TOKEN; }; f" push origin main
+```
+
+- Reuse the same `credential.helper` snippet for other GitHub actions (e.g., `fetch`, `pull`, `push`, `clone`) while the token is exported.
+- Keep the token confined to the shell session; do not commit or log it.
+
 ## Documentation Agent
 - Curates README, RUNBOOK, and architecture notes for the evolving Node.js stack.
 - Keeps change logs, onboarding checklists, and CI/build guidance current for future contributors.
