@@ -25,6 +25,9 @@
 - Ensures the service binds safely on the LAN and documents operational runbooks.
 - Owns the GitHub Actions workflow, auditing steps (`npm run ci`, `npm audit`, `npm run build`), and keeps artifacts deployable.
 - Manages CI secrets, including provisioning `GITHUB_TOKEN` for automation scripts and release tooling, and documents usage expectations.
+- Documents how local tooling and Codex automation should read `GITHUB_TOKEN` from `.env` and verifies no secrets leak outside the intended environment.
+- Provides Codex with scoped access to `GITHUB_TOKEN` via `.env` for required GitHub operations.
+- Ensures `GITHUB_TOKEN`-backed GitHub operations (e.g., fetch, push, release automation) are scoped correctly.
 - Ensures Task Tracker includes CI/CD, secrets, environment variables, and operational runbook tasks for any new work.
 - Logs CI/CD workflow changes, deployments, and operational notes in `WORKLOG.md`.
 
