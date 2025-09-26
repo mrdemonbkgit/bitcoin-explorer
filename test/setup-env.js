@@ -22,6 +22,7 @@ process.env.FEATURE_ADDRESS_EXPLORER = process.env.FEATURE_ADDRESS_EXPLORER ?? '
 process.env.ADDRESS_INDEX_PATH = process.env.ADDRESS_INDEX_PATH ?? `./data/test-address-index-${process.pid}`;
 process.env.ADDRESS_XPUB_GAP_LIMIT = process.env.ADDRESS_XPUB_GAP_LIMIT ?? '20';
 process.env.ADDRESS_INDEXER_CONCURRENCY = process.env.ADDRESS_INDEXER_CONCURRENCY ?? '4';
+process.env.ADDRESS_INDEXER_PARALLEL_ENABLED = process.env.ADDRESS_INDEXER_PARALLEL_ENABLED ?? 'true';
 process.env.ADDRESS_PREVOUT_CACHE_MAX = process.env.ADDRESS_PREVOUT_CACHE_MAX ?? '2000';
 process.env.ADDRESS_PREVOUT_CACHE_TTL = process.env.ADDRESS_PREVOUT_CACHE_TTL ?? '60000';
 process.env.ADDRESS_LEVEL_CACHE_MB = process.env.ADDRESS_LEVEL_CACHE_MB ?? '32';

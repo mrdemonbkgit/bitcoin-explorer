@@ -6,6 +6,7 @@ import { LRUCache } from 'lru-cache';
 import { config } from '../config.js';
 import { getLogger } from './logger.js';
 import { metrics } from './metrics.js';
+import { PrevoutWorkerPool, isWorkerThreadsAvailable } from './prevoutWorkerPool.js';
 import { rpcCall } from '../rpc.js';
 import { NotFoundError } from '../errors.js';
 import { CacheEvents, subscribe } from './cacheEvents.js';
@@ -232,6 +233,9 @@ export class AddressIndexer {
     this.levelCacheBytes = config.address.levelCacheBytes;
     this.levelWriteBufferBytes = config.address.levelWriteBufferBytes;
     this.batchBlockCount = Math.max(1, config.address.batchBlockCount);
+    this.prevoutWorkerPool = null;
+    this.prevoutWorkerPoolReady = null;
+    this.prevoutWorkerPoolDisabled = false;
     this.stopping = false;
     this.signalHandlers = [];
     this.syncInProgress = false;
@@ -267,6 +271,7 @@ export class AddressIndexer {
       await this.db.close();
       this.db = null;
     }
+    await this.destroyPrevoutWorkerPool();
     this.prevoutCache.clear();
   }
 
@@ -285,6 +290,61 @@ export class AddressIndexer {
       batchBlockCount: this.batchBlockCount,
       parallelPrevoutEnabled: this.parallelPrevoutEnabled
     };
+  }
+
+  async ensurePrevoutWorkerPool() {
+    if (this.prevoutWorkerPoolDisabled || !this.parallelPrevoutEnabled || this.prevoutConcurrency <= 1) {
+      return null;
+    }
+    if (this.prevoutWorkerPoolReady) {
+      return this.prevoutWorkerPoolReady;
+    }
+    if (!PrevoutWorkerPool.isSupported()) {
+      this.logger.info({ context: { event: 'addressIndexer.prevout.worker.unsupported' } }, 'Worker threads unavailable; using inline prevout fetch');
+      this.prevoutWorkerPoolDisabled = true;
+      this.prevoutWorkerPoolReady = Promise.resolve(null);
+      return this.prevoutWorkerPoolReady;
+    }
+    const workerCount = Math.min(this.prevoutConcurrency, MAX_RECOMMENDED_CONCURRENCY);
+    const pool = new PrevoutWorkerPool(workerCount, this.logger);
+    this.prevoutWorkerPool = pool;
+    this.prevoutWorkerPoolReady = pool.init()
+      .then(() => pool)
+      .catch((error) => {
+        this.logger.warn({ context: { event: 'addressIndexer.prevout.worker.init.failure' }, err: error }, 'Failed to initialise prevout worker pool; falling back to inline fetch');
+        this.prevoutWorkerPool = null;
+        this.prevoutWorkerPoolDisabled = true;
+        return null;
+      });
+    return this.prevoutWorkerPoolReady;
+  }
+
+  async getPrevoutWorkerPool() {
+    if (this.prevoutWorkerPoolDisabled) {
+      return null;
+    }
+    const ready = await this.ensurePrevoutWorkerPool();
+    return ready ?? null;
+  }
+
+  async destroyPrevoutWorkerPool({ disable = false } = {}) {
+    if (this.prevoutWorkerPool) {
+      try {
+        await this.prevoutWorkerPool.destroy();
+      } catch (error) {
+        this.logger.warn({ context: { event: 'addressIndexer.prevout.worker.destroy.error' }, err: error }, 'Failed to cleanly shutdown prevout worker pool');
+      }
+    }
+    this.prevoutWorkerPool = null;
+    this.prevoutWorkerPoolReady = null;
+    if (disable) {
+      this.prevoutWorkerPoolDisabled = true;
+    }
+  }
+
+  async handlePrevoutWorkerPoolFailure(error) {
+    this.logger.warn({ context: { event: 'addressIndexer.prevout.worker.failure' }, err: error }, 'Prevout worker pool failure; disabling pool and falling back to inline fetch');
+    await this.destroyPrevoutWorkerPool({ disable: true });
   }
 
   registerSignalHandlers() {
@@ -378,7 +438,8 @@ export class AddressIndexer {
         levelCacheBytes: this.levelCacheBytes,
         levelWriteBufferBytes: this.levelWriteBufferBytes,
         batchBlockCount: this.batchBlockCount,
-        parallelPrevoutEnabled: this.parallelPrevoutEnabled
+        parallelPrevoutEnabled: this.parallelPrevoutEnabled,
+        workerThreads: isWorkerThreadsAvailable()
       }
     }, 'Address indexer starting');
     if (!this.parallelPrevoutEnabled && this.prevoutConcurrency > 1) {
@@ -399,6 +460,8 @@ export class AddressIndexer {
     }
     this.registerSignalHandlers();
     this.resetSyncStats();
+    this.prevoutWorkerPoolDisabled = false;
+    await this.ensurePrevoutWorkerPool();
     await this.initialSync();
     if (!this.stopping) {
       this.watchZmq();
@@ -764,8 +827,108 @@ export class AddressIndexer {
     let cacheHits = 0;
     let rpcCalls = 0;
 
-    const fetchPrevout = async (input, index) => {
+    const pool = await this.getPrevoutWorkerPool();
+    let workerActive = Boolean(pool);
+
+    const workerPayloads = [];
+    const workerIndices = [];
+    const fallbackInputs = [];
+    const fallbackIndices = [];
+
+    for (let index = 0; index < vin.length; index += 1) {
+      const input = vin[index];
       if (!input || input.coinbase) {
+        results[index] = null;
+        continue;
+      }
+      const key = `${input.txid}:${input.vout}`;
+      const cached = this.prevoutCache.get(key);
+      if (cached) {
+        cacheHits += 1;
+        results[index] = cached;
+        continue;
+      }
+      if (pool) {
+        workerPayloads.push({ txid: input.txid, vout: input.vout });
+        workerIndices.push(index);
+      } else {
+        fallbackInputs.push(input);
+        fallbackIndices.push(index);
+      }
+    }
+
+    if (pool && workerPayloads.length > 0) {
+      try {
+        const workerResults = await pool.fetchMany(workerPayloads);
+        rpcCalls += workerPayloads.length;
+        for (let i = 0; i < workerResults.length; i += 1) {
+          const result = workerResults[i];
+          const index = workerIndices[i];
+          const input = vin[index];
+          const key = `${input.txid}:${input.vout}`;
+          if (result.status === 'ok') {
+            const prevout = result.prevout ?? null;
+            if (prevout) {
+              this.prevoutCache.set(key, prevout);
+            }
+            results[index] = prevout;
+          } else {
+            this.logger.warn({
+              context: {
+                event: 'addressIndexer.prevout.worker.error',
+                txid: input.txid,
+                vout: input.vout
+              },
+              err: result.error
+            }, 'Prevout worker task failed; retrying inline');
+            fallbackInputs.push(input);
+            fallbackIndices.push(index);
+            rpcCalls -= 1; // will account for retry below
+          }
+        }
+      } catch (error) {
+        workerActive = false;
+        await this.handlePrevoutWorkerPoolFailure(error);
+        for (let i = 0; i < workerPayloads.length; i += 1) {
+          const index = workerIndices[i];
+          fallbackInputs.push(vin[index]);
+          fallbackIndices.push(index);
+        }
+      }
+    }
+
+    if (fallbackInputs.length > 0) {
+      const inlineStats = await this.fetchPrevoutsInline(fallbackInputs, fallbackIndices, results);
+      cacheHits += inlineStats.cacheHits;
+      rpcCalls += inlineStats.rpcCalls;
+    }
+
+    const duration = durationMs(startedAt);
+    this.syncStats.prevoutCacheHits += cacheHits;
+    this.syncStats.prevoutRpcCalls += rpcCalls;
+    const source = rpcCalls > 0 ? (cacheHits > 0 ? 'mixed' : 'rpc') : 'cache';
+    this.logger.debug({
+      context: {
+        event: 'addressIndexer.prevout.duration',
+        txid: transaction?.txid,
+        inputs,
+        cacheHits,
+        rpcCalls,
+        concurrency: this.prevoutConcurrency,
+        workerPool: workerActive,
+        durationMs: duration
+      }
+    }, 'Address indexer prevout fetch timing sample');
+    metrics.recordAddressIndexerPrevoutDuration({ source, durationMs: duration });
+    return results;
+  }
+
+  async fetchPrevoutsInline(inputs, indices, results) {
+    let cacheHits = 0;
+    let rpcCalls = 0;
+
+    const fetchPrevout = async (input, index) => {
+      if (!input) {
         results[index] = null;
         return;
       }
@@ -776,7 +939,6 @@ export class AddressIndexer {
         results[index] = cached;
         return;
       }
-
       try {
         rpcCalls += 1;
         this.logger.debug({ context: { event: 'addressIndexer.prevout.fetch', txid: input.txid } }, 'Fetching prevout via RPC');
@@ -792,35 +954,17 @@ export class AddressIndexer {
       }
     };
 
-    try {
-      if (!this.parallelPrevoutEnabled || this.prevoutConcurrency <= 1) {
-        for (let i = 0; i < vin.length; i += 1) {
-          // sequential fetch preserves ordering when parallelism disabled
-          await fetchPrevout(vin[i], i);
-        }
-      } else {
-        const tasks = vin.map((input, index) => () => fetchPrevout(input, index));
-        await runWithConcurrency(tasks, this.prevoutConcurrency);
+    const useParallel = this.parallelPrevoutEnabled && this.prevoutConcurrency > 1 && (!this.prevoutWorkerPool || this.prevoutWorkerPoolDisabled);
+    if (useParallel) {
+      const tasks = inputs.map((input, idx) => () => fetchPrevout(input, indices[idx]));
+      await runWithConcurrency(tasks, this.prevoutConcurrency);
+    } else {
+      for (let i = 0; i < inputs.length; i += 1) {
+        await fetchPrevout(inputs[i], indices[i]);
       }
-      return results;
-    } finally {
-      const duration = durationMs(startedAt);
-      this.syncStats.prevoutCacheHits += cacheHits;
-      this.syncStats.prevoutRpcCalls += rpcCalls;
-      const source = rpcCalls > 0 ? (cacheHits > 0 ? 'mixed' : 'rpc') : 'cache';
-      this.logger.debug({
-        context: {
-          event: 'addressIndexer.prevout.duration',
-          txid: transaction?.txid,
-          inputs,
-          cacheHits,
-          rpcCalls,
-          concurrency: this.prevoutConcurrency,
-          durationMs: duration
-        }
-      }, 'Address indexer prevout fetch timing sample');
-      metrics.recordAddressIndexerPrevoutDuration({ source, durationMs: duration });
     }
+
+    return { cacheHits, rpcCalls };
   }
 
   watchZmq() {
