@@ -800,13 +800,14 @@ export class AddressIndexer {
    *  address: string;
    *  currentTxid: string;
    *  prevTxid: string;
-   *  prevVout: number;
-   *  valueSat: number;
-   *  height: number | null;
-   *  timestamp: number | null;
-   *  incrementTx: boolean;
-   *  summary: AddressSummary;
-   * }} payload
+  *  prevVout: number;
+  *  valueSat: number;
+  *  height: number | null;
+  *  timestamp: number | null;
+  *  incrementTx: boolean;
+  *  summary: AddressSummary;
+  *  touchedSummaries?: Set<string>;
+  * }} payload
    * @param {BatchOperation[]} operations
    */
   applyOutbound({ address, currentTxid, prevTxid, prevVout, valueSat, height, timestamp, incrementTx, summary, touchedSummaries }, operations) {
