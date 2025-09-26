@@ -37,6 +37,7 @@ Additional environment controls:
 - `METRICS_ENABLED`, `METRICS_PATH`, `METRICS_INCLUDE_DEFAULT` — toggle the Prometheus metrics endpoint (default `/metrics` on the main bind). Leave disabled unless scraping from a trusted LAN host.
 - `WEBSOCKET_ENABLED`, `WEBSOCKET_PATH`, `WEBSOCKET_PORT` — enable LAN-only WebSocket pushes for home/mempool updates. When `WEBSOCKET_PORT` is blank the gateway shares the main HTTP server; otherwise it binds separately on the provided port.
 - `FEATURE_ADDRESS_EXPLORER`, `ADDRESS_INDEX_PATH`, `ADDRESS_XPUB_GAP_LIMIT` — enable the LevelDB-backed address/xpub explorer, configure index storage path, and set the derivation gap limit for xpub views.
+- `GITHUB_TOKEN` — optional GitHub personal access token for automation (release tooling, benchmarks); omit in standard LAN deployments.
 
 ## Deployment
 ```bash

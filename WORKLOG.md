@@ -32,6 +32,25 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
 
 ---
 
+## 2025-09-26
+### Done
+- docs(config): document optional GitHub token env var — (PR TBD)
+  - Context: README env block, docs/env.sample, and docs/RUNBOOK.md mention `GITHUB_TOKEN` for automation while noting LAN deployments can omit it.
+
+### In Progress
+- Documentation: survey automation scripts to confirm whether additional guidance around `GITHUB_TOKEN` is needed (Owner: Docs).
+
+### Next
+- DevOps: verify CI/release tooling leverages `GITHUB_TOKEN` or clarify if future removal is acceptable.
+
+### Blockers/Risks
+- None.
+
+### Notes
+- `.env` guidance now keeps optional secrets out of default installs while signaling when the token helps automation.
+
+---
+
 ## 2025-09-21
 ### Done
 - feat(logger): expand structured logging destinations and instrumentation — (PR TBD)

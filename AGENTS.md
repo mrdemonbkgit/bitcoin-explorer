@@ -24,6 +24,7 @@
 - Defines environment configuration, deployment scripts, and runtime monitors.
 - Ensures the service binds safely on the LAN and documents operational runbooks.
 - Owns the GitHub Actions workflow, auditing steps (`npm run ci`, `npm audit`, `npm run build`), and keeps artifacts deployable.
+- Manages CI secrets, including provisioning `GITHUB_TOKEN` for automation scripts and release tooling, and documents usage expectations.
 - Ensures Task Tracker includes CI/CD, secrets, environment variables, and operational runbook tasks for any new work.
 - Logs CI/CD workflow changes, deployments, and operational notes in `WORKLOG.md`.
 
