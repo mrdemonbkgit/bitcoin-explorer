@@ -36,10 +36,16 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
 ### Done
 - docs(config): document optional GitHub token env var — (PR TBD)
   - Context: README env block, docs/env.sample, and docs/RUNBOOK.md mention `GITHUB_TOKEN` for automation while noting LAN deployments can omit it.
+- test(address): add prevout worker pool regression coverage — (PR TBD)
+  - Context: New unit tests exercise worker-thread prevout fetch, fallback path, and metrics to guard against future regressions.
+- feat(address): document hardware expectations and seeding guidance — (PR TBD)
+  - Context: RUNBOOK/TESTING updated with SSD/CPU requirements, LevelDB snapshot guidance, and recommendations for interpreting new instrumentation/benchmarks.
+- chore(docs): note address indexer throughput target in PRD and CHANGELOG — (PR TBD)
+  - Context: Captured the >=3 blocks/sec goal and highlighted the performance improvements in the unreleased changelog.
 
 ### In Progress
 - Documentation: survey automation scripts to confirm whether additional guidance around `GITHUB_TOKEN` is needed (Owner: Docs).
-- Address indexer performance (Phase 2): RPC concurrency & caching rollout (Owner: Dev, Refs docs/design/address-indexer-performance.md Task Tracker).
+- Address indexer performance (QA follow-up): explore regression coverage for worker error injection during full sync (Owner: QA).
 
 ### Next
 - DevOps: verify CI/release tooling leverages `GITHUB_TOKEN` or clarify if future removal is acceptable.

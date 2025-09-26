@@ -39,6 +39,7 @@ Additional environment controls:
 - `WEBSOCKET_ENABLED`, `WEBSOCKET_PATH`, `WEBSOCKET_PORT` — enable LAN-only WebSocket pushes for home/mempool updates. When `WEBSOCKET_PORT` is blank the gateway shares the main HTTP server; otherwise it binds separately on the provided port.
 - `BITCOIN_RPC_MAX_SOCKETS` — scale the HTTP agent pool size for Bitcoin RPC requests (default 16). Raise alongside `BITCOIN_RPC_TIMEOUT` when the indexer needs longer-lived batch calls.
 - `FEATURE_ADDRESS_EXPLORER`, `ADDRESS_INDEX_PATH`, `ADDRESS_XPUB_GAP_LIMIT`, `ADDRESS_INDEXER_CONCURRENCY`, `ADDRESS_INDEXER_PARALLEL_ENABLED`, `ADDRESS_PREVOUT_CACHE_MAX`, `ADDRESS_PREVOUT_CACHE_TTL`, `ADDRESS_LEVEL_CACHE_MB`, `ADDRESS_LEVEL_WRITE_BUFFER_MB`, `ADDRESS_INDEXER_BATCH_BLOCKS` — enable the LevelDB-backed address/xpub explorer, configure storage, tune prevout worker concurrency (default 4), toggle parallel prevout fetching, control the short-lived prevout cache sizing/expiry (defaults 2000 entries / 60s), set LevelDB cache/write buffering (defaults 32MB/8MB) for SSD-backed deployments, and optionally batch up to N consecutive blocks per write (default 1).
+- Recommended hardware for the address explorer: 4+ CPU cores, SSD-backed storage for `ADDRESS_INDEX_PATH`, and a local Core node with `txindex=1`.
 - `GITHUB_TOKEN` — optional GitHub personal access token for automation (release tooling, benchmarks); omit in standard LAN deployments.
 
 ## Deployment
@@ -105,6 +106,8 @@ npm run test:regtest
 - Xpub views derive the first `ADDRESS_XPUB_GAP_LIMIT` addresses on both external/internal branches and aggregate balances from the index. Adjust the gap limit as needed for larger wallets.
 - For environments without Bitcoin Core access (local unit tests, CI sandboxes), set `FEATURE_ADDRESS_EXPLORER=false` to avoid repeated RPC authentication failures in logs; the indexer will remain inactive.
 - Backup/restore: stop the explorer, copy the LevelDB directory (or take a filesystem snapshot), and restart. To rebuild from scratch, delete `ADDRESS_INDEX_PATH` and restart with the feature enabled (will rescan from height 0). For a graceful shutdown during sync, send `SIGINT`/`SIGTERM`, wait for `server.shutdown.complete`, and confirm the indexer logged either `sync.halted` or `sync.complete` before terminating.
+- Seeding: to fast-track a new instance, copy an existing `ADDRESS_INDEX_PATH` directory and restart the explorer; the indexer will resume from the recorded height. Ensure the snapshot originates from the same network (e.g., both mainnet) and was captured after a clean shutdown.
+- Quick disable: set `FEATURE_ADDRESS_EXPLORER=false` and restart if the host hardware cannot sustain the indexer or if the deployment does not need address views.
 
 ## Incident Response
 1. Confirm Bitcoin Core RPC availability (`bitcoin-cli getblockcount`).

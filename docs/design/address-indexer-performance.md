@@ -8,15 +8,15 @@
   - [x] Implement optional parallel prevout fetcher guarded by config flag.
 - [ ] Quality Assurance — (QA)
   - [x] Extend benchmarks (`npm run bench:address`) to record throughput before/after changes.
-  - [ ] Add regression tests covering instrumentation output and parallel worker correctness.
+  - [x] Add regression tests covering instrumentation output and parallel worker correctness.
 - [ ] DevOps — (DevOps)
-  - [ ] Document required Core settings and hardware expectations for acceptable sync speed.
-  - [ ] Provide guidance for seeding LevelDB snapshot or disabling feature when not needed.
+  - [x] Document required Core settings and hardware expectations for acceptable sync speed.
+  - [x] Provide guidance for seeding LevelDB snapshot or disabling feature when not needed.
 - [ ] Documentation — (Docs)
-  - [ ] Update RUNBOOK/TESTING with tuning steps and interpretation of new metrics/log fields.
-  - [ ] Summarize findings in CHANGELOG and WORKLOG on rollout.
+  - [x] Update RUNBOOK/TESTING with tuning steps and interpretation of new metrics/log fields.
+  - [x] Summarize findings in CHANGELOG and WORKLOG on rollout.
 - [ ] Product — (Product)
-  - [ ] Validate improved sync targets with stakeholders and capture performance goals in PRD addendum.
+  - [x] Validate improved sync targets with stakeholders and capture performance goals in PRD addendum.
 
 ## Overview
 The LevelDB-backed address indexer currently syncs at ~1 block/sec on a local node, making first-time synchronization impractical. This plan focuses on measuring bottlenecks and delivering incremental throughput gains without compromising stability or the LAN-first philosophy.

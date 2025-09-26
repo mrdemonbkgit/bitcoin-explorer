@@ -23,6 +23,7 @@ A **local-LAN accessible**, read-only Bitcoin block explorer implemented with a 
   - Transaction view with inputs/outputs, totals, vsize/weight, locktime, RBF hint.
   - One search box that routes to block or tx.
 - Expose the explorer to **local LAN** directly on `0.0.0.0:<port>`.
+- When the address indexer is enabled, sustain at least **3 blocks/sec** full-chain sync on SSD-backed hardware (4+ cores) and surface instrumentation/benchmarks so operators can validate throughput.
 
 **Non‑Goals (MVP)**
 - No descriptor-based scanning or advanced analytics beyond balances/history.

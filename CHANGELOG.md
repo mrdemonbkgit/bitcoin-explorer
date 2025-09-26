@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Expanded structured logging: configurable destinations (`LOG_DESTINATION`), sampling (`LOG_SAMPLE_RATE`), redaction (`LOG_REDACT`), richer request/cache context, and enhanced subsystem logs (WebSocket/ZMQ/address indexer).
+- Tuned the address indexer for higher throughput (configurable LevelDB cache/batching, parallel prevout worker pool) with updated benchmarks and operational guidance.
 
 ## [0.2.0] - 2025-09-20
 - Rolled out the `/api/v1` JSON endpoints alongside existing SSR pages, keeping shared services as the single source of truth.
