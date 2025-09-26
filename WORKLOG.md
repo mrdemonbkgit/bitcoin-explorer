@@ -32,6 +32,25 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
 
 ---
 
+## 2025-09-21
+### Done
+- feat(logger): expand structured logging destinations and instrumentation — (PR TBD)
+  - Context: docs/design/logging-enhancements.md
+
+### In Progress
+- QA: add integration/regtest assertions for logging redaction and subsystem events (Refs docs/design/logging-enhancements.md Task Tracker).
+
+### Next
+- Assess file-rotation strategy for file-based logging and document supervisor guidance.
+
+### Blockers/Risks
+- File rotation approach undecided; ensure chosen method respects LAN-only deployments without adding heavy dependencies.
+
+### Notes
+- Introduced `LOG_DESTINATION`, `LOG_SAMPLE_RATE`, and `LOG_REDACT` along with richer request/cache instrumentation and subsystem logs; docs and unit coverage updated.
+
+---
+
 ## 2025-09-20
 ### Done
 - chore(release): ship 0.2.0 milestone bundle — (Tag v0.2.0)

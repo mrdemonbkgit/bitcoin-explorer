@@ -68,17 +68,31 @@ export async function startWebsocketGateway({ httpServer } = {}) {
       return;
     }
 
+    let sent = 0;
+    let failed = 0;
     for (const client of clients) {
       if (client.readyState === client.OPEN) {
         try {
           client.send(serialized);
           metrics.recordWebsocketMessage({ type: message.type, event: 'sent' });
+          sent += 1;
         } catch (error) {
           metrics.recordWebsocketMessage({ type: message.type, event: 'error' });
           logger.warn({ context: { event: 'websocket.send.error' }, err: error }, 'Failed to send WebSocket message');
+          failed += 1;
         }
       }
     }
+
+    logger.debug({
+      context: {
+        event: 'websocket.broadcast',
+        type: message.type,
+        recipients: sent,
+        failed,
+        connectedClients: clients.size
+      }
+    }, 'Broadcasted WebSocket message');
   }
 
   wss.on('connection', (socket, request) => {
@@ -87,13 +101,20 @@ export async function startWebsocketGateway({ httpServer } = {}) {
     logger.debug({
       context: {
         event: 'websocket.connection',
-        remoteAddress: request.socket.remoteAddress
+        remoteAddress: request.socket.remoteAddress,
+        totalClients: clients.size
       }
     }, 'WebSocket client connected');
 
     socket.on('close', () => {
       clients.delete(socket);
       metrics.recordWebsocketConnection({ event: 'close' });
+      logger.debug({
+        context: {
+          event: 'websocket.connection.closed',
+          totalClients: clients.size
+        }
+      }, 'WebSocket client disconnected');
     });
 
     socket.on('error', (error) => {
@@ -123,6 +144,12 @@ export async function startWebsocketGateway({ httpServer } = {}) {
         client.terminate();
         clients.delete(client);
         metrics.recordWebsocketConnection({ event: 'terminated' });
+        logger.debug({
+          context: {
+            event: 'websocket.connection.terminated',
+            totalClients: clients.size
+          }
+        }, 'WebSocket client terminated after missed heartbeat');
         continue;
       }
       client.isAlive = false;

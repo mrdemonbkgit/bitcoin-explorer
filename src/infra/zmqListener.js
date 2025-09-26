@@ -27,6 +27,13 @@ export async function startZmqListener({ blockEndpoint = null, txEndpoint = null
   }
 
   const logger = getLogger().child({ module: 'zmq' });
+  logger.info({
+    context: {
+      event: 'zmq.start',
+      blockEndpoint: blockEndpoint ?? null,
+      txEndpoint: txEndpoint ?? null
+    }
+  }, 'Starting ZMQ listener');
   const sockets = [];
   let lastBlockHash = null;
   let lastBlockTimestamp = 0;
@@ -121,9 +128,18 @@ export async function startZmqListener({ blockEndpoint = null, txEndpoint = null
 
   return async () => {
     closed = true;
+    logger.info({ context: { event: 'zmq.stop' } }, 'Stopping ZMQ listener');
     await Promise.all(sockets.map(async ({ subscriber, topic }) => {
       try {
         subscriber.close();
+        logger.info({
+          context: {
+            zmq: {
+              topic,
+              event: 'close'
+            }
+          }
+        }, 'ZMQ subscription closed');
       } catch (error) {
         logger.warn({
           context: {

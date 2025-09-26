@@ -24,6 +24,7 @@ vi.mock('../../src/services/mempoolService.js', () => mempoolMock);
 vi.mock('../../src/services/addressExplorerService.js', () => addressExplorerMocks);
 
 import { createApp } from '../../src/server.js';
+import { config } from '../../src/config.js';
 
 beforeEach(() => {
   Object.values(serviceMocks).forEach((mock) => mock.mockReset());
@@ -170,7 +171,9 @@ describe('server routes', () => {
     expect(mempoolMock.getMempoolViewModel).toHaveBeenCalledWith(1);
   });
 
-  it('renders an address page when explorer is enabled', async () => {
+  const addressExplorerIt = config.address.enabled ? it : it.skip;
+
+  addressExplorerIt('renders an address page when explorer is enabled', async () => {
     addressExplorerMocks.getAddressDetails.mockResolvedValue({
       summary: {
         address: 'bc1qexample',
@@ -201,7 +204,7 @@ describe('server routes', () => {
     expect(response.text).toContain('bc1qexample');
   });
 
-  it('renders an xpub page with derived addresses', async () => {
+  addressExplorerIt('renders an xpub page with derived addresses', async () => {
     addressExplorerMocks.getXpubDetails.mockResolvedValue({
       xpub: 'xpub-test',
       gapLimit: 5,

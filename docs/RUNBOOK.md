@@ -32,7 +32,7 @@ BITCOIN_RPC_TIMEOUT=3000
 Additional environment controls:
 - `BITCOIN_ZMQ_BLOCK` / `BITCOIN_ZMQ_TX` — optional ZMQ endpoints for raw block/tx notifications to invalidate caches immediately.
 - `CACHE_TTL_MEMPOOL` — TTL (ms) for the mempool snapshot cache (default 5s).
-- `LOG_LEVEL`, `LOG_PRETTY` — structured logging verbosity and formatting.
+- `LOG_LEVEL`, `LOG_PRETTY`, `LOG_DESTINATION`, `LOG_SAMPLE_RATE`, `LOG_REDACT` — structured logging verbosity, formatting, destination, sampling, and redaction controls.
 - `FEATURE_MEMPOOL_DASHBOARD` — disable the `/mempool` route when set to `false`.
 - `METRICS_ENABLED`, `METRICS_PATH`, `METRICS_INCLUDE_DEFAULT` — toggle the Prometheus metrics endpoint (default `/metrics` on the main bind). Leave disabled unless scraping from a trusted LAN host.
 - `WEBSOCKET_ENABLED`, `WEBSOCKET_PATH`, `WEBSOCKET_PORT` — enable LAN-only WebSocket pushes for home/mempool updates. When `WEBSOCKET_PORT` is blank the gateway shares the main HTTP server; otherwise it binds separately on the provided port.
@@ -72,7 +72,8 @@ npm run test:regtest
 
 ## Logging
 - Logs emit JSON via `pino`; default level is `info`. Adjust with `LOG_LEVEL`.
-- Use `LOG_PRETTY=true` locally for human-friendly output.
+- Configure destinations with `LOG_DESTINATION` (e.g., `stdout`, `file:/var/log/bitcoin-explorer.log`), apply sampling to `debug`/`trace` entries with `LOG_SAMPLE_RATE`, and mask secrets by listing JSON paths in `LOG_REDACT` (comma-separated).
+- Use `LOG_PRETTY=true` locally for human-friendly output; pretty formatting is ignored when logs are written to files or custom transports.
 - Pipe stdout/stderr into journald/systemd or ship to your log aggregator.
 
 ## Metrics Exporter
@@ -99,6 +100,7 @@ npm run test:regtest
 - On first start the indexer walks the chain via `getblockhash/getblock` and stores address/UTXO mappings; expect runtime proportional to chain size. Track progress via logs (`addressIndexer.sync.progress` every 100 blocks, `addressIndexer.sync.complete` when finished, or `addressIndexer.sync.halted` if shutdown occurs mid-sync). Checkpoints are persisted after each block, so restarts resume from the last processed height instead of starting over.
 - Subsequent updates rely on existing ZMQ notifications. If ZMQ is disabled, the indexer periodically polls new blocks during API usage.
 - Xpub views derive the first `ADDRESS_XPUB_GAP_LIMIT` addresses on both external/internal branches and aggregate balances from the index. Adjust the gap limit as needed for larger wallets.
+- For environments without Bitcoin Core access (local unit tests, CI sandboxes), set `FEATURE_ADDRESS_EXPLORER=false` to avoid repeated RPC authentication failures in logs; the indexer will remain inactive.
 - Backup/restore: stop the explorer, copy the LevelDB directory (or take a filesystem snapshot), and restart. To rebuild from scratch, delete `ADDRESS_INDEX_PATH` and restart with the feature enabled (will rescan from height 0). For a graceful shutdown during sync, send `SIGINT`/`SIGTERM`, wait for `server.shutdown.complete`, and confirm the indexer logged either `sync.halted` or `sync.complete` before terminating.
 
 ## Incident Response

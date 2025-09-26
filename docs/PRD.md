@@ -138,6 +138,11 @@ npm run build
 npm start
 ```
 
+**Logging controls**
+- Structured JSON logs stream to stdout by default (powered by `pino`).
+- Operators adjust verbosity with `LOG_LEVEL`, enable pretty printing locally with `LOG_PRETTY=true`, and can route logs to files or custom transports via `LOG_DESTINATION` (e.g., `file:/var/log/bitcoin-explorer.log`).
+- Use `LOG_SAMPLE_RATE` to down-sample verbose (`debug`/`trace`) entries and `LOG_REDACT` (comma-separated JSON paths) to mask sensitive fields such as RPC credentials in emitted logs.
+
 **Verify listening & access**
 ```bash
 # on the node

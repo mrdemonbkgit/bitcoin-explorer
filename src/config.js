@@ -46,6 +46,9 @@ const ConfigSchema = z.object({
   CACHE_TTL_MEMPOOL: z.coerce.number().int().nonnegative().default(5000),
   LOG_LEVEL: LogLevelEnum.default('info'),
   LOG_PRETTY: BooleanSchema.default(false),
+  LOG_DESTINATION: z.string().default('stdout'),
+  LOG_REDACT: z.string().optional(),
+  LOG_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(1),
   FEATURE_MEMPOOL_DASHBOARD: BooleanSchema.default(true),
   METRICS_ENABLED: BooleanSchema.default(false),
   METRICS_PATH: z.string().regex(/^\//, 'Metrics path must start with /').default('/metrics'),
@@ -68,6 +71,48 @@ const ConfigSchema = z.object({
 });
 
 const cfg = ConfigSchema.parse(process.env);
+
+function parseLogDestination(raw) {
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  if (!value || value === 'stdout') {
+    return { type: 'stdout' };
+  }
+  if (value.startsWith('file:')) {
+    const filePath = value.slice('file:'.length).trim();
+    if (!filePath) {
+      throw new Error('LOG_DESTINATION file path is empty');
+    }
+    return { type: 'file', path: filePath };
+  }
+  if (value.startsWith('transport:')) {
+    const target = value.slice('transport:'.length).trim();
+    if (!target) {
+      throw new Error('LOG_DESTINATION transport target is empty');
+    }
+    return { type: 'transport', target };
+  }
+  throw new Error(`Unsupported LOG_DESTINATION value: ${value}`);
+}
+
+function parseRedactPaths(raw) {
+  if (!raw) {
+    return [];
+  }
+  return raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+let logDestination;
+try {
+  logDestination = parseLogDestination(cfg.LOG_DESTINATION);
+} catch (error) {
+  console.warn(`[config] ${error.message}; falling back to stdout logging`);
+  logDestination = { type: 'stdout' };
+}
+
+const logRedactPaths = parseRedactPaths(cfg.LOG_REDACT);
 
 export const config = Object.freeze({
   app: {
@@ -93,7 +138,10 @@ export const config = Object.freeze({
   },
   logging: {
     level: cfg.LOG_LEVEL,
-    pretty: cfg.LOG_PRETTY
+    pretty: cfg.LOG_PRETTY,
+    destination: logDestination,
+    redactPaths: logRedactPaths,
+    sampleRate: cfg.LOG_SAMPLE_RATE
   },
   features: {
     mempoolDashboard: cfg.FEATURE_MEMPOOL_DASHBOARD,

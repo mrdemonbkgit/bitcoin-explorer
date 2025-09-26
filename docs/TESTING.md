@@ -4,19 +4,25 @@ This guide captures manual and automated checks for the near-term feature bundle
 
 ## 1. Structured Logging
 1. Set in `.env`:
-   ```ini
-   LOG_LEVEL=debug
-   LOG_PRETTY=true
-   ```
+ ```ini
+  LOG_LEVEL=debug
+  LOG_PRETTY=true
+  LOG_DESTINATION=stdout
+  LOG_SAMPLE_RATE=1
+  LOG_REDACT=context.rpc.auth
+  ```
 2. Run the app (`npm run dev` or `npm start`).
 3. Trigger several routes:
    - `GET /`
    - `GET /block/<known height>`
    - `GET /search?q=missing` (expect 404)
 4. Confirm console output shows JSON (or pretty) logs with:
-   - `request.start` / `request.finish` entries containing `requestId`, `route`, `status`, `durationMs`.
-   - `rpc.success`/`rpc.failure` entries listing RPC method and duration.
-   - `request.error` entries for 404/500 cases with stack traces.
+   - `request.start` / `request.finish` entries including `requestId`, `route`, `routeTemplate`, `status`, `durationMs`, and `responseBytes`.
+   - `rpc.success`/`rpc.failure` entries listing RPC method, duration, and redacted auth fields.
+ - `cache.event` debug entries when responses hit/miss in-process caches.
+  - `request.error` entries for 404/500 cases with stack traces.
+5. Optional: set `LOG_SAMPLE_RATE=0.2` and confirm only ~20% of `debug`/`trace` entries appear while `info`+ logs remain.
+6. If Bitcoin Core RPC is not available during tests, set `FEATURE_ADDRESS_EXPLORER=false` to skip address indexer startup (avoids expected 401 log noise).
 
 ## 2. ZMQ Cache Busting
 1. Ensure Bitcoin Core has ZMQ enabled (e.g. in `bitcoin.conf`):

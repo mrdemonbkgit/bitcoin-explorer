@@ -52,7 +52,7 @@ npm run build
 ## Quality & CI
 - `npm run lint` — ESLint baseline for Node 24 with `eslint-plugin-n`
 - `npm run typecheck` — TypeScript `--noEmit` with `checkJs` coverage
-- `npm run test` / `npm run coverage` — Vitest unit tests plus Supertest-backed integration tests
+- `npm run test` / `npm run coverage` — Vitest unit tests plus Supertest-backed integration tests. When running without a reachable Bitcoin Core node, set `FEATURE_ADDRESS_EXPLORER=false` so the LevelDB indexer stays disabled.
 - `npm run test:regtest` — End-to-end smoke suite against a local `bitcoind -regtest` (requires `bitcoind` binary). Set `REGTEST_SCRAPE_METRICS=true` to scrape `/metrics`, `REGTEST_ADDRESS_CHECK=true` to exercise the address/xpub explorer (the harness now provisions an isolated LevelDB path and waits for the indexer to catch up), and interrupt/restart the app mid-sync to confirm checkpoints resume cleanly.
 - `npm run build` — Creates `dist/` with runtime assets and production dependencies
 - `npm run bench:address` — Seeds a regtest node and captures LevelDB ingest/read metrics (writes `bench/current-results.json`)
@@ -96,7 +96,7 @@ ADDRESS_XPUB_GAP_LIMIT=20
 ### Realtime Updates, Logging, Metrics & WebSockets
 - Set `BITCOIN_ZMQ_BLOCK` / `BITCOIN_ZMQ_TX` to enable sub-second cache busting via Bitcoin Core's ZMQ notifications (e.g., `tcp://127.0.0.1:28332`). Without these values the explorer falls back to TTL-based polling.
 - Tune cache behaviour with `CACHE_TTL_MEMPOOL` alongside existing tip/block/tx TTLs.
-- Structured logs emit JSON via `pino`; adjust `LOG_LEVEL` (`trace`→`fatal`) and toggle pretty printing with `LOG_PRETTY=true` during local development.
+- Structured logs emit JSON via `pino`; adjust `LOG_LEVEL` (`trace`→`fatal`), toggle pretty printing with `LOG_PRETTY=true`, choose destinations with `LOG_DESTINATION` (`stdout`, `file:/path/to/log.jsonl`), redact sensitive fields via `LOG_REDACT`, and down-sample verbose logs using `LOG_SAMPLE_RATE`.
 - Toggle the mempool dashboard entirely via `FEATURE_MEMPOOL_DASHBOARD=false` if operators prefer to disable the route.
 - Enable the Prometheus exporter with `METRICS_ENABLED=true`. The endpoint defaults to `/metrics` on the main bind; adjust via `METRICS_PATH`. Set `METRICS_INCLUDE_DEFAULT=true` to expose Node.js process metrics.
 - Enable LAN-only WebSocket pushes with `WEBSOCKET_ENABLED=true`. Clients use the configured `WEBSOCKET_PATH` (default `/ws`) and reuse the main server port unless `WEBSOCKET_PORT` is set. When active, the home and mempool pages hydrate with near-real-time updates while remaining fully functional without WebSockets.
@@ -192,7 +192,7 @@ ADDRESS_XPUB_GAP_LIMIT=20
 ## Notes
 - `npm run build` now packages the app (with production dependencies) into `dist/` for deployment.
 - `/mempool` provides a live dashboard that refreshes via ZMQ when configured, falling back to TTL-based cache expiry otherwise.
-- Structured JSON logs (`pino`) capture request/RPC context; tune verbosity with `LOG_LEVEL`.
+- Structured JSON logs (`pino`) capture request/RPC context; tune verbosity with `LOG_LEVEL`, switch destinations via `LOG_DESTINATION`, and dial sampling/redaction with `LOG_SAMPLE_RATE` / `LOG_REDACT`.
 - Routes render HTML responses; JSON APIs can still be layered on later if desired.
 - Mid-term API + SSR split planning lives in `docs/EXPANSION.md` (see Mid-Term) with implementation details in `docs/design/api-ssr-plan.md`.
 

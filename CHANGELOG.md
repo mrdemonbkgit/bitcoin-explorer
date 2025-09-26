@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased
-- _No changes yet._
+- Expanded structured logging: configurable destinations (`LOG_DESTINATION`), sampling (`LOG_SAMPLE_RATE`), redaction (`LOG_REDACT`), richer request/cache context, and enhanced subsystem logs (WebSocket/ZMQ/address indexer).
 
 ## [0.2.0] - 2025-09-20
 - Rolled out the `/api/v1` JSON endpoints alongside existing SSR pages, keeping shared services as the single source of truth.

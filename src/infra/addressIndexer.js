@@ -290,6 +290,13 @@ export class AddressIndexer {
     }
     this.stopping = false;
     await this.open();
+    this.logger.info({
+      context: {
+        event: 'addressIndexer.start',
+        dbPath: this.dbPath,
+        gapLimit: this.gapLimit
+      }
+    }, 'Address indexer starting');
     this.registerSignalHandlers();
     await this.initialSync();
     if (!this.stopping) {
@@ -581,6 +588,7 @@ export class AddressIndexer {
 
   watchZmq() {
     const unsubscribeBlock = subscribe(CacheEvents.BLOCK_NEW, ({ hash }) => {
+      this.logger.debug({ context: { event: 'addressIndexer.zmq.block', hash } }, 'Received block notification from ZMQ');
       this.syncChain = this.syncChain
         .then(async () => {
           if (this.stopping) {
@@ -589,6 +597,7 @@ export class AddressIndexer {
           this.syncInProgress = true;
           try {
             await this.processBlockHash(hash);
+            this.logger.debug({ context: { event: 'addressIndexer.block.applied', hash } }, 'Address indexer applied new block');
           } catch (error) {
             this.logger.error({ context: { event: 'addressIndexer.block.error', hash }, err: error }, 'Failed to process new block');
           } finally {
