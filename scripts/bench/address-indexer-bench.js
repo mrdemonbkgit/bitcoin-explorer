@@ -109,6 +109,11 @@ async function measureReads(indexer, addresses, iterations) {
   return results;
 }
 
+function toNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 async function run() {
   const argv = process.argv.slice(2);
   const options = parseArgs(argv);
@@ -130,6 +135,7 @@ async function run() {
   const ingestMs = performance.now() - ingestStart;
 
   const bestHeight = await rpcCall('getblockcount');
+  const syncStats = typeof indexer.getSyncStats === 'function' ? indexer.getSyncStats() : null;
   const sampleAddresses = await collectSampleAddresses(indexer, options.sample);
 
   if (options.warmups > 0 && sampleAddresses.length > 0) {
@@ -153,13 +159,40 @@ async function run() {
     await legacyIndexer.close();
   }
 
+  const blocksProcessed = syncStats?.blocksProcessed ?? 0;
+  const transactionsProcessed = syncStats?.transactionsProcessed ?? 0;
+  const prevoutCacheHits = syncStats?.prevoutCacheHits ?? 0;
+  const prevoutRpcCalls = syncStats?.prevoutRpcCalls ?? 0;
+  const ingestSeconds = ingestMs / 1000;
+  const throughput = {
+    blocksPerSecond: ingestSeconds > 0 ? blocksProcessed / ingestSeconds : 0,
+    transactionsPerSecond: ingestSeconds > 0 ? transactionsProcessed / ingestSeconds : 0
+  };
+
+  const settings = {
+    prevoutConcurrency: toNumber(process.env.ADDRESS_INDEXER_CONCURRENCY) ?? syncStats?.prevoutWorkers ?? null,
+    prevoutCacheMax: toNumber(process.env.ADDRESS_PREVOUT_CACHE_MAX) ?? syncStats?.prevoutCacheMax ?? null,
+    prevoutCacheTtlMs: toNumber(process.env.ADDRESS_PREVOUT_CACHE_TTL) ?? syncStats?.prevoutCacheTtl ?? null,
+    levelCacheMb: toNumber(process.env.ADDRESS_LEVEL_CACHE_MB) ?? (syncStats?.levelCacheBytes ? syncStats.levelCacheBytes / (1024 * 1024) : null),
+    levelWriteBufferMb: toNumber(process.env.ADDRESS_LEVEL_WRITE_BUFFER_MB) ?? (syncStats?.levelWriteBufferBytes ? syncStats.levelWriteBufferBytes / (1024 * 1024) : null),
+    rpcMaxSockets: toNumber(process.env.BITCOIN_RPC_MAX_SOCKETS) ?? null
+  };
+
   const result = {
     backend: BACKEND_LABEL,
     chainHeight: bestHeight,
     ingestMs,
-    ingestSeconds: ingestMs / 1000,
+    ingestSeconds,
     sampleCount: sampleAddresses.length,
     iterations: options.iterations,
+    settings,
+    sync: {
+      blocksProcessed,
+      transactionsProcessed,
+      prevoutCacheHits,
+      prevoutRpcCalls
+    },
+    throughput,
     reads: {
       summaryMs: readMetrics.summaryMs,
       transactionsMs: readMetrics.transactionsMs,

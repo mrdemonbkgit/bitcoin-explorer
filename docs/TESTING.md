@@ -61,6 +61,9 @@ This guide captures manual and automated checks for the near-term feature bundle
   - Descriptor-derived keys that are not extended (`xpub`/`tpub`/etc.) are still exercised via the address endpoints; xpub assertions are skipped with a warning in those cases.
 - **Benchmark Guardrail:**
   - `npm run bench:address` — Seeds a deterministic regtest dataset, runs the LevelDB indexer benchmark harness, and writes results to `bench/current-results.json`.
+    - Output now includes `sync.blocksProcessed`, `sync.transactionsProcessed`, and `throughput` fields (blocks/sec, tx/sec). Capture a baseline copy in `bench/leveldb-results.json` after instrumentation changes and note the run in `WORKLOG.md`.
+    - When validating a PR locally, compare the new throughput figures against the previous baseline; call out deltas greater than 10% in the PR description.
+    - Tune address sync experiments with `ADDRESS_INDEXER_CONCURRENCY` (prevout workers), `ADDRESS_PREVOUT_CACHE_MAX` / `ADDRESS_PREVOUT_CACHE_TTL` (short-lived prevout cache sizing), `ADDRESS_LEVEL_CACHE_MB` / `ADDRESS_LEVEL_WRITE_BUFFER_MB` (LevelDB cache + write buffer), and `BITCOIN_RPC_MAX_SOCKETS` when pairing higher RPC concurrency with increased timeouts.
   - `npm run bench:compare` — Compares the latest metrics against the baseline (`bench/leveldb-results.json`) and fails if ingest/read deltas exceed configured tolerances. Relative thresholds remain configurable via `BENCH_MAX_*_DELTA`; use the optional `BENCH_MAX_*_ABS` env vars (milliseconds) to ignore tiny absolute differences caused by CI noise.
   - GitHub Actions executes the same commands nightly in the `benchmark-indexer` job (see `address-indexer-benchmark` artifact for raw JSON).
 
@@ -90,8 +93,9 @@ Keep this document updated as new features land or testing strategy evolves.
 2. Hit the exporter with `curl http://<HOST>:<PORT>/metrics` and confirm it returns HTTP 200 along with series like `explorer_http_requests_total` and `explorer_rpc_requests_total`.
 3. Trigger traffic (home page, `/api/v1/tip`, `/mempool`) and re-run the curl to ensure counters increment.
 4. Optional: set `REGTEST_SCRAPE_METRICS=true` before `npm run test:regtest` to have the smoke suite verify the exporter during CI.
-5. When metrics are disabled, the endpoint should return HTTP 404 with `Metrics disabled` in the body.
-6. After validation, flip `METRICS_ENABLED` (and any related flags) back to `false` so production-like environments stay in their default posture unless operators explicitly enable scraping.
+5. Confirm the exporter exposes the new `explorer_address_indexer_block_duration_seconds` and `explorer_address_indexer_prevout_duration_seconds` histograms after running the indexer (they report in seconds). Use these to sanity-check sustained sync throughput.
+6. When metrics are disabled, the endpoint should return HTTP 404 with `Metrics disabled` in the body.
+7. After validation, flip `METRICS_ENABLED` (and any related flags) back to `false` so production-like environments stay in their default posture unless operators explicitly enable scraping.
 
 ## 8. WebSocket Notifications
 1. Enable WebSockets via `.env`:

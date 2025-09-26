@@ -17,7 +17,9 @@ function createDisabledMetrics(path) {
     recordCacheEvent: NOOP,
     recordZmqEvent: NOOP,
     recordWebsocketConnection: NOOP,
-    recordWebsocketMessage: NOOP
+    recordWebsocketMessage: NOOP,
+    recordAddressIndexerBlockDuration: NOOP,
+    recordAddressIndexerPrevoutDuration: NOOP
   };
 }
 
@@ -112,6 +114,22 @@ function createEnabledMetrics({ path, includeDefault }) {
     registers: [registry]
   });
 
+  const addressIndexerBlockDurationSeconds = new Histogram({
+    name: 'explorer_address_indexer_block_duration_seconds',
+    help: 'Observed block processing duration for the address indexer',
+    labelNames: ['outcome'],
+    buckets: [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30],
+    registers: [registry]
+  });
+
+  const addressIndexerPrevoutDurationSeconds = new Histogram({
+    name: 'explorer_address_indexer_prevout_duration_seconds',
+    help: 'Observed prevout fetch duration for the address indexer',
+    labelNames: ['source'],
+    buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2],
+    registers: [registry]
+  });
+
   async function handler(_req, res, next) {
     try {
       res.setHeader('Content-Type', registry.contentType);
@@ -159,6 +177,14 @@ function createEnabledMetrics({ path, includeDefault }) {
     },
     recordWebsocketMessage({ type, event }) {
       websocketMessagesTotal.inc({ type: type ?? 'unknown', event: event ?? 'broadcast' });
+    },
+    recordAddressIndexerBlockDuration({ outcome, durationMs }) {
+      const safeOutcome = outcome === 'success' ? 'success' : 'error';
+      addressIndexerBlockDurationSeconds.observe({ outcome: safeOutcome }, (durationMs ?? 0) / MS_TO_SECONDS);
+    },
+    recordAddressIndexerPrevoutDuration({ source, durationMs }) {
+      const safeSource = source ?? 'unknown';
+      addressIndexerPrevoutDurationSeconds.observe({ source: safeSource }, (durationMs ?? 0) / MS_TO_SECONDS);
     }
   };
 }
@@ -177,7 +203,9 @@ export function createNoopRecorder() {
     recordCacheEvent: NOOP,
     recordZmqEvent: NOOP,
     recordWebsocketConnection: NOOP,
-    recordWebsocketMessage: NOOP
+    recordWebsocketMessage: NOOP,
+    recordAddressIndexerBlockDuration: NOOP,
+    recordAddressIndexerPrevoutDuration: NOOP
   };
 }
 

@@ -27,6 +27,7 @@ CACHE_TTL_TIP=5000        # ms
 CACHE_TTL_BLOCK=600000
 CACHE_TTL_TX=600000
 BITCOIN_RPC_TIMEOUT=3000
+BITCOIN_RPC_MAX_SOCKETS=16
 ```
 
 Additional environment controls:
@@ -36,7 +37,8 @@ Additional environment controls:
 - `FEATURE_MEMPOOL_DASHBOARD` — disable the `/mempool` route when set to `false`.
 - `METRICS_ENABLED`, `METRICS_PATH`, `METRICS_INCLUDE_DEFAULT` — toggle the Prometheus metrics endpoint (default `/metrics` on the main bind). Leave disabled unless scraping from a trusted LAN host.
 - `WEBSOCKET_ENABLED`, `WEBSOCKET_PATH`, `WEBSOCKET_PORT` — enable LAN-only WebSocket pushes for home/mempool updates. When `WEBSOCKET_PORT` is blank the gateway shares the main HTTP server; otherwise it binds separately on the provided port.
-- `FEATURE_ADDRESS_EXPLORER`, `ADDRESS_INDEX_PATH`, `ADDRESS_XPUB_GAP_LIMIT` — enable the LevelDB-backed address/xpub explorer, configure index storage path, and set the derivation gap limit for xpub views.
+- `BITCOIN_RPC_MAX_SOCKETS` — scale the HTTP agent pool size for Bitcoin RPC requests (default 16). Raise alongside `BITCOIN_RPC_TIMEOUT` when the indexer needs longer-lived batch calls.
+- `FEATURE_ADDRESS_EXPLORER`, `ADDRESS_INDEX_PATH`, `ADDRESS_XPUB_GAP_LIMIT`, `ADDRESS_INDEXER_CONCURRENCY`, `ADDRESS_PREVOUT_CACHE_MAX`, `ADDRESS_PREVOUT_CACHE_TTL`, `ADDRESS_LEVEL_CACHE_MB`, `ADDRESS_LEVEL_WRITE_BUFFER_MB` — enable the LevelDB-backed address/xpub explorer, configure storage, tune prevout worker concurrency (default 4), control the short-lived prevout cache sizing/expiry (defaults 2000 entries / 60s), and set LevelDB cache/write buffer sizes (defaults 32MB/8MB respectively) for SSD-backed deployments.
 - `GITHUB_TOKEN` — optional GitHub personal access token for automation (release tooling, benchmarks); omit in standard LAN deployments.
 
 ## Deployment

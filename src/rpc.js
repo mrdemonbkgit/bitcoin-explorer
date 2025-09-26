@@ -7,8 +7,16 @@ import { BadRequestError, NotFoundError, ServiceUnavailableError } from './error
 import { getRequestLogger } from './infra/logger.js';
 import { metrics } from './infra/metrics.js';
 
-const httpAgent = new HttpAgent({ keepAlive: true, maxSockets: 4 });
-const httpsAgent = new HttpsAgent({ keepAlive: true, maxSockets: 4 });
+const socketLimit = Math.max(1, Number(config.rpc.maxSockets) || 16);
+const agentOptions = {
+  keepAlive: true,
+  maxSockets: socketLimit,
+  maxTotalSockets: socketLimit,
+  maxFreeSockets: Math.max(1, Math.floor(socketLimit / 2))
+};
+
+const httpAgent = new HttpAgent(agentOptions);
+const httpsAgent = new HttpsAgent(agentOptions);
 
 let client = await buildClient();
 

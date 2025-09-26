@@ -1,16 +1,26 @@
 {
   "backend": "leveldb",
   "chainHeight": 226,
-  "ingestMs": 2161.6561810000003,
-  "ingestSeconds": 2.161656181,
+  "ingestMs": 1716.3657239999998,
+  "ingestSeconds": 1.7163657239999999,
   "sampleCount": 50,
   "iterations": 3,
+  "sync": {
+    "blocksProcessed": 226,
+    "transactionsProcessed": 826,
+    "prevoutCacheHits": 0,
+    "prevoutRpcCalls": 991
+  },
+  "throughput": {
+    "blocksPerSecond": 131.67356865721237,
+    "transactionsPerSecond": 481.24941464981157
+  },
   "reads": {
-    "summaryMs": 3.7136670000004415,
-    "transactionsMs": 35.21790899999996,
-    "utxosMs": 15.504313999999795,
-    "summaryAvgMs": 0.024757780000002942,
-    "transactionsAvgMs": 0.23478605999999977,
-    "utxosAvgMs": 0.10336209333333196
+    "summaryMs": 3.430974000000333,
+    "transactionsMs": 38.0742209999994,
+    "utxosMs": 20.177018999999746,
+    "summaryAvgMs": 0.02287316000000222,
+    "transactionsAvgMs": 0.253828139999996,
+    "utxosAvgMs": 0.1345134599999983
   }
 }

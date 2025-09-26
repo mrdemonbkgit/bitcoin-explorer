@@ -36,6 +36,7 @@ const ConfigSchema = z.object({
   BITCOIN_RPC_USER: z.string().min(1).optional(),
   BITCOIN_RPC_PASSWORD: z.string().min(1).optional(),
   BITCOIN_RPC_TIMEOUT: z.coerce.number().int().positive().default(3000),
+  BITCOIN_RPC_MAX_SOCKETS: z.coerce.number().int().positive().default(16),
   BITCOIN_ZMQ_BLOCK: ZmqUriSchema,
   BITCOIN_ZMQ_TX: ZmqUriSchema,
   APP_BIND: z.string().default('0.0.0.0'),
@@ -58,7 +59,12 @@ const ConfigSchema = z.object({
   WEBSOCKET_PORT: OptionalPortSchema,
   FEATURE_ADDRESS_EXPLORER: BooleanSchema.default(false),
   ADDRESS_INDEX_PATH: z.string().default('./data/address-index'),
-  ADDRESS_XPUB_GAP_LIMIT: z.coerce.number().int().positive().default(20)
+  ADDRESS_XPUB_GAP_LIMIT: z.coerce.number().int().positive().default(20),
+  ADDRESS_INDEXER_CONCURRENCY: z.coerce.number().int().positive().default(4),
+  ADDRESS_PREVOUT_CACHE_MAX: z.coerce.number().int().positive().default(2000),
+  ADDRESS_PREVOUT_CACHE_TTL: z.coerce.number().int().nonnegative().default(60000),
+  ADDRESS_LEVEL_CACHE_MB: z.coerce.number().nonnegative().default(32),
+  ADDRESS_LEVEL_WRITE_BUFFER_MB: z.coerce.number().nonnegative().default(8)
 }).superRefine((data, ctx) => {
   const hasCookie = Boolean(data.BITCOIN_RPC_COOKIE);
   const hasUserPass = Boolean(data.BITCOIN_RPC_USER && data.BITCOIN_RPC_PASSWORD);
@@ -104,6 +110,10 @@ function parseRedactPaths(raw) {
     .filter((entry) => entry.length > 0);
 }
 
+function mbToBytes(megabytes) {
+  return Math.max(0, Math.trunc(megabytes * 1024 * 1024));
+}
+
 let logDestination;
 try {
   logDestination = parseLogDestination(cfg.LOG_DESTINATION);
@@ -130,7 +140,8 @@ export const config = Object.freeze({
     cookiePath: cfg.BITCOIN_RPC_COOKIE ?? null,
     username: cfg.BITCOIN_RPC_USER ?? null,
     password: cfg.BITCOIN_RPC_PASSWORD ?? null,
-    timeout: cfg.BITCOIN_RPC_TIMEOUT
+    timeout: cfg.BITCOIN_RPC_TIMEOUT,
+    maxSockets: cfg.BITCOIN_RPC_MAX_SOCKETS
   },
   zmq: {
     blockEndpoint: cfg.BITCOIN_ZMQ_BLOCK ?? null,
@@ -161,6 +172,11 @@ export const config = Object.freeze({
   address: {
     enabled: cfg.FEATURE_ADDRESS_EXPLORER,
     indexPath: cfg.ADDRESS_INDEX_PATH,
-    xpubGapLimit: cfg.ADDRESS_XPUB_GAP_LIMIT
+    xpubGapLimit: cfg.ADDRESS_XPUB_GAP_LIMIT,
+    indexerConcurrency: cfg.ADDRESS_INDEXER_CONCURRENCY,
+    prevoutCacheMax: cfg.ADDRESS_PREVOUT_CACHE_MAX,
+    prevoutCacheTtl: cfg.ADDRESS_PREVOUT_CACHE_TTL,
+    levelCacheBytes: mbToBytes(cfg.ADDRESS_LEVEL_CACHE_MB),
+    levelWriteBufferBytes: mbToBytes(cfg.ADDRESS_LEVEL_WRITE_BUFFER_MB)
   }
 });

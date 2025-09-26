@@ -2,8 +2,10 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Level } from 'level';
+import { LRUCache } from 'lru-cache';
 import { config } from '../config.js';
 import { getLogger } from './logger.js';
+import { metrics } from './metrics.js';
 import { rpcCall } from '../rpc.js';
 import { NotFoundError } from '../errors.js';
 import { CacheEvents, subscribe } from './cacheEvents.js';
@@ -20,6 +22,44 @@ const PREFIXES = {
 
 const DIRECTION_IN = 'in';
 const DIRECTION_OUT = 'out';
+
+const HR_TO_MS = 1e6;
+
+function now() {
+  return process.hrtime.bigint();
+}
+
+function durationMs(startedAt) {
+  return Number(process.hrtime.bigint() - startedAt) / HR_TO_MS;
+}
+
+async function runWithConcurrency(tasks, concurrency) {
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    return;
+  }
+  const limit = Math.max(1, concurrency || 1);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < tasks.length) {
+      const current = nextIndex;
+      nextIndex += 1;
+      await tasks[current]();
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => worker());
+  await Promise.all(workers);
+}
+
+function createEmptySyncStats() {
+  return {
+    blocksProcessed: 0,
+    transactionsProcessed: 0,
+    prevoutCacheHits: 0,
+    prevoutRpcCalls: 0
+  };
+}
 
 /**
  * @typedef {Object} AddressSummary
@@ -179,17 +219,34 @@ export class AddressIndexer {
     /** @type {import('level').Level<string, unknown> | null} */
     this.db = null;
     this.subscriptions = [];
-    this.prevoutCache = new Map();
+    this.prevoutCacheMax = config.address.prevoutCacheMax;
+    this.prevoutCacheTtl = config.address.prevoutCacheTtl;
+    this.prevoutCache = new LRUCache({
+      max: this.prevoutCacheMax,
+      ttl: this.prevoutCacheTtl,
+      ttlAutopurge: true
+    });
+    this.prevoutConcurrency = Math.max(1, config.address.indexerConcurrency);
+    this.levelCacheBytes = config.address.levelCacheBytes;
+    this.levelWriteBufferBytes = config.address.levelWriteBufferBytes;
     this.stopping = false;
     this.signalHandlers = [];
     this.syncInProgress = false;
     this.syncChain = Promise.resolve();
+    this.syncStats = createEmptySyncStats();
   }
 
   async open() {
     ensureDirectory(this.dbPath);
+    const levelOptions = { valueEncoding: 'json' };
+    if (this.levelCacheBytes > 0) {
+      levelOptions.cacheSize = this.levelCacheBytes;
+    }
+    if (this.levelWriteBufferBytes > 0) {
+      levelOptions.writeBufferSize = this.levelWriteBufferBytes;
+    }
     /** @type {import('level').Level<string, unknown>} */
-    const db = new Level(this.dbPath, { valueEncoding: 'json' });
+    const db = new Level(this.dbPath, levelOptions);
     this.db = db;
     await this.db.open();
   }
@@ -208,6 +265,21 @@ export class AddressIndexer {
       this.db = null;
     }
     this.prevoutCache.clear();
+  }
+
+  resetSyncStats() {
+    this.syncStats = createEmptySyncStats();
+  }
+
+  getSyncStats() {
+    return {
+      ...this.syncStats,
+      prevoutWorkers: this.prevoutConcurrency,
+      levelCacheBytes: this.levelCacheBytes,
+      levelWriteBufferBytes: this.levelWriteBufferBytes,
+      prevoutCacheMax: this.prevoutCacheMax,
+      prevoutCacheTtl: this.prevoutCacheTtl
+    };
   }
 
   registerSignalHandlers() {
@@ -294,10 +366,16 @@ export class AddressIndexer {
       context: {
         event: 'addressIndexer.start',
         dbPath: this.dbPath,
-        gapLimit: this.gapLimit
+        gapLimit: this.gapLimit,
+        prevoutConcurrency: this.prevoutConcurrency,
+        prevoutCacheMax: this.prevoutCacheMax,
+        prevoutCacheTtl: this.prevoutCacheTtl,
+        levelCacheBytes: this.levelCacheBytes,
+        levelWriteBufferBytes: this.levelWriteBufferBytes
       }
     }, 'Address indexer starting');
     this.registerSignalHandlers();
+    this.resetSyncStats();
     await this.initialSync();
     if (!this.stopping) {
       this.watchZmq();
@@ -371,113 +449,153 @@ export class AddressIndexer {
       return;
     }
 
-    const block = await fetchBlockWithRetry(hash, this.logger);
-    const height = expectedHeight ?? block.height;
-    const timestamp = block.time ?? null;
-    /** @type {BatchOperation[]} */
-    const operations = [];
-    /** @type {Map<string, AddressSummary>} */
-    const summaries = new Map();
+    const startedAt = now();
+    let outcome = 'success';
+    let height = expectedHeight;
+    let txCount = 0;
 
-    for (const transaction of block.tx || []) {
-      const prevouts = await this.fetchPrevouts(transaction);
-      const addressesSeen = new Set();
+    try {
+      const block = await fetchBlockWithRetry(hash, this.logger);
+      height = expectedHeight ?? block.height;
+      const timestamp = block.time ?? null;
+      /** @type {BatchOperation[]} */
+      const operations = [];
+      /** @type {Map<string, AddressSummary>} */
+      const summaries = new Map();
 
-      // Outputs (inbound)
-      for (const output of transaction.vout || []) {
-        if (!output?.scriptPubKey) {
-          continue;
-        }
-        const addresses = output.scriptPubKey.addresses || (output.scriptPubKey.address ? [output.scriptPubKey.address] : []);
-        if (!Array.isArray(addresses) || addresses.length === 0) {
-          continue;
-        }
-        const valueSat = sats(output.value ?? 0);
-        for (const address of addresses) {
-          const summary = await this.getSummaryForMutation(address, height, summaries);
-          if (!addressesSeen.has(address)) {
-            summary.txCount += 1;
-            addressesSeen.add(address);
+      txCount = Array.isArray(block.tx) ? block.tx.length : 0;
+
+      for (const transaction of block.tx || []) {
+        const prevouts = await this.fetchPrevouts(transaction);
+        const addressesSeen = new Set();
+
+        // Outputs (inbound)
+        for (const output of transaction.vout || []) {
+          if (!output?.scriptPubKey) {
+            continue;
           }
-          if (typeof height === 'number') {
-            summary.lastSeenHeight = summary.lastSeenHeight != null ? Math.max(summary.lastSeenHeight, height) : height;
-            summary.firstSeenHeight = summary.firstSeenHeight != null ? Math.min(summary.firstSeenHeight, height) : height;
+          const addresses = output.scriptPubKey.addresses || (output.scriptPubKey.address ? [output.scriptPubKey.address] : []);
+          if (!Array.isArray(addresses) || addresses.length === 0) {
+            continue;
           }
-          summary.totalReceivedSat += valueSat;
-          summary.balanceSat += valueSat;
-          summary.utxoCount += 1;
-          summary.utxoValueSat += valueSat;
+          const valueSat = sats(output.value ?? 0);
+          for (const address of addresses) {
+            const summary = await this.getSummaryForMutation(address, height, summaries);
+            if (!addressesSeen.has(address)) {
+              summary.txCount += 1;
+              addressesSeen.add(address);
+            }
+            if (typeof height === 'number') {
+              summary.lastSeenHeight = summary.lastSeenHeight != null ? Math.max(summary.lastSeenHeight, height) : height;
+              summary.firstSeenHeight = summary.firstSeenHeight != null ? Math.min(summary.firstSeenHeight, height) : height;
+            }
+            summary.totalReceivedSat += valueSat;
+            summary.balanceSat += valueSat;
+            summary.utxoCount += 1;
+            summary.utxoValueSat += valueSat;
 
-          operations.push(/** @type {BatchPutOperation} */ ({
-            type: 'put',
-            key: utxoKey(address, transaction.txid, output.n ?? 0),
-            value: /** @type {AddressUtxoRecord} */ ({
+            operations.push(/** @type {BatchPutOperation} */ ({
+              type: 'put',
+              key: utxoKey(address, transaction.txid, output.n ?? 0),
+              value: /** @type {AddressUtxoRecord} */ ({
+                address,
+                txid: transaction.txid,
+                vout: output.n ?? 0,
+                valueSat,
+                height
+              })
+            }));
+            operations.push(/** @type {BatchPutOperation} */ ({
+              type: 'put',
+              key: txKey(address, height, DIRECTION_IN, output.n ?? 0, transaction.txid),
+              value: /** @type {AddressTxRecord} */ ({
+                address,
+                txid: transaction.txid,
+                height,
+                direction: DIRECTION_IN,
+                valueSat,
+                ioIndex: output.n ?? 0,
+                timestamp
+              })
+            }));
+          }
+        }
+
+        // Inputs (outbound)
+        for (const [index, input] of (transaction.vin || []).entries()) {
+          if (input.coinbase) {
+            continue;
+          }
+          const prevout = prevouts[index];
+          if (!prevout) {
+            continue;
+          }
+          const valueSat = sats(prevout.value ?? 0);
+          const addresses = prevout.scriptPubKey?.addresses || (prevout.scriptPubKey?.address ? [prevout.scriptPubKey.address] : []);
+          for (const address of addresses) {
+            const summary = await this.getSummaryForMutation(address, height, summaries);
+            const incrementTx = !addressesSeen.has(address);
+            if (incrementTx) {
+              addressesSeen.add(address);
+            }
+            this.applyOutbound({
               address,
-              txid: transaction.txid,
-              vout: output.n ?? 0,
+              currentTxid: transaction.txid,
+              prevTxid: input.txid,
+              prevVout: input.vout ?? 0,
               valueSat,
-              height
-            })
-          }));
-          operations.push(/** @type {BatchPutOperation} */ ({
-            type: 'put',
-            key: txKey(address, height, DIRECTION_IN, output.n ?? 0, transaction.txid),
-            value: /** @type {AddressTxRecord} */ ({
-              address,
-              txid: transaction.txid,
               height,
-              direction: DIRECTION_IN,
-              valueSat,
-              ioIndex: output.n ?? 0,
-              timestamp
-            })
-          }));
-        }
-      }
-
-      // Inputs (outbound)
-      for (const [index, input] of (transaction.vin || []).entries()) {
-        if (input.coinbase) {
-          continue;
-        }
-        const prevout = prevouts[index];
-        if (!prevout) {
-          continue;
-        }
-        const valueSat = sats(prevout.value ?? 0);
-        const addresses = prevout.scriptPubKey?.addresses || (prevout.scriptPubKey?.address ? [prevout.scriptPubKey.address] : []);
-        for (const address of addresses) {
-          const summary = await this.getSummaryForMutation(address, height, summaries);
-          const incrementTx = !addressesSeen.has(address);
-          if (incrementTx) {
-            addressesSeen.add(address);
+              timestamp,
+              incrementTx,
+              summary
+            }, operations);
           }
-          this.applyOutbound({
-            address,
-            currentTxid: transaction.txid,
-            prevTxid: input.txid,
-            prevVout: input.vout ?? 0,
-            valueSat,
-            height,
-            timestamp,
-            incrementTx,
-            summary
-          }, operations);
         }
       }
-    }
 
-    for (const [address, summary] of summaries.entries()) {
-      operations.push(/** @type {BatchPutOperation} */ ({
-        type: 'put',
-        key: summaryKey(address),
-        value: sanitizeSummary(summary)
-      }));
-    }
+      for (const [address, summary] of summaries.entries()) {
+        operations.push(/** @type {BatchPutOperation} */ ({
+          type: 'put',
+          key: summaryKey(address),
+          value: sanitizeSummary(summary)
+        }));
+      }
 
-    await this.setMetadata('last_processed_hash', hash, operations);
-    await this.setMetadata('last_processed_height', height, operations);
-    await this.db.batch(operations);
+      await this.setMetadata('last_processed_hash', hash, operations);
+      await this.setMetadata('last_processed_height', height, operations);
+
+      const batchStartedAt = now();
+      await this.db.batch(operations);
+      const batchDuration = durationMs(batchStartedAt);
+      this.logger.debug({
+        context: {
+          event: 'addressIndexer.db.batch.duration',
+          hash,
+          height,
+          operations: operations.length,
+          durationMs: batchDuration
+        }
+      }, 'Address indexer committed LevelDB batch');
+
+      this.syncStats.blocksProcessed += 1;
+      this.syncStats.transactionsProcessed += txCount;
+    } catch (error) {
+      outcome = 'error';
+      throw error;
+    } finally {
+      const totalDuration = durationMs(startedAt);
+      this.logger.debug({
+        context: {
+          event: 'addressIndexer.block.duration',
+          hash,
+          height,
+          txCount,
+          outcome,
+          durationMs: totalDuration
+        }
+      }, 'Address indexer block timing sample');
+      metrics.recordAddressIndexerBlockDuration({ outcome, durationMs: totalDuration });
+    }
   }
 
   /**
@@ -559,31 +677,62 @@ export class AddressIndexer {
   }
 
   async fetchPrevouts(transaction) {
-    const results = [];
-    for (const input of transaction.vin || []) {
-      if (input.coinbase) {
-        results.push(null);
-        continue;
+    const startedAt = now();
+    const vin = Array.isArray(transaction?.vin) ? transaction.vin : [];
+    const inputs = vin.length;
+    const results = new Array(inputs).fill(null);
+    let cacheHits = 0;
+    let rpcCalls = 0;
+
+    const tasks = vin.map((input, index) => async () => {
+      if (!input || input.coinbase) {
+        results[index] = null;
+        return;
       }
       const key = `${input.txid}:${input.vout}`;
-      if (this.prevoutCache.has(key)) {
-        results.push(this.prevoutCache.get(key));
-        continue;
+      const cached = this.prevoutCache.get(key);
+      if (cached) {
+        cacheHits += 1;
+        results[index] = cached;
+        return;
       }
+
       try {
+        rpcCalls += 1;
         this.logger.debug({ context: { event: 'addressIndexer.prevout.fetch', txid: input.txid } }, 'Fetching prevout via RPC');
         const prevTx = await rpcCall('getrawtransaction', [input.txid, true]);
         const prevout = prevTx?.vout?.find((output) => output.n === input.vout) || null;
         if (prevout) {
           this.prevoutCache.set(key, prevout);
         }
-        results.push(prevout);
+        results[index] = prevout;
       } catch (error) {
         this.logger.warn({ context: { event: 'addressIndexer.prevout.error', txid: input.txid }, err: error }, 'Failed to fetch prevout');
-        results.push(null);
+        results[index] = null;
       }
+    });
+
+    try {
+      await runWithConcurrency(tasks, this.prevoutConcurrency);
+      return results;
+    } finally {
+      const duration = durationMs(startedAt);
+      this.syncStats.prevoutCacheHits += cacheHits;
+      this.syncStats.prevoutRpcCalls += rpcCalls;
+      const source = rpcCalls > 0 ? (cacheHits > 0 ? 'mixed' : 'rpc') : 'cache';
+      this.logger.debug({
+        context: {
+          event: 'addressIndexer.prevout.duration',
+          txid: transaction?.txid,
+          inputs,
+          cacheHits,
+          rpcCalls,
+          concurrency: this.prevoutConcurrency,
+          durationMs: duration
+        }
+      }, 'Address indexer prevout fetch timing sample');
+      metrics.recordAddressIndexerPrevoutDuration({ source, durationMs: duration });
     }
-    return results;
   }
 
   watchZmq() {
