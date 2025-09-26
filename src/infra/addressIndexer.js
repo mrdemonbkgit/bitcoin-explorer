@@ -489,7 +489,6 @@ export class AddressIndexer {
     let pendingHash = null;
     let pendingHeight = null;
     const batchSummaryCache = batchingEnabled ? new Map() : null;
-    const batchTouchedSummaries = batchingEnabled ? new Set() : null;
 
     const flushPending = async () => {
       if (pendingBlocks === 0) {
@@ -507,13 +506,12 @@ export class AddressIndexer {
       pendingHash = null;
       pendingHeight = null;
       batchSummaryCache?.clear();
-      batchTouchedSummaries?.clear();
     };
 
     while (!this.stopping && nextHeight <= bestHeight) {
       this.syncInProgress = true;
       try {
-        const result = await this.processBlockHeight(nextHeight, batchingEnabled ? { collect: true, summaryCache: batchSummaryCache, touchedSummaries: batchTouchedSummaries } : undefined);
+        const result = await this.processBlockHeight(nextHeight, batchingEnabled ? { collect: true, summaryCache: batchSummaryCache } : undefined);
         if (batchingEnabled && result?.operations) {
           pendingOperations.push(...result.operations);
           pendingBlocks += 1;
@@ -523,11 +521,6 @@ export class AddressIndexer {
           if (result.summaries && batchSummaryCache) {
             for (const [address, summary] of result.summaries.entries()) {
               batchSummaryCache.set(address, summary);
-            }
-          }
-          if (result.touchedSummaries && batchTouchedSummaries) {
-            for (const address of result.touchedSummaries) {
-              batchTouchedSummaries.add(address);
             }
           }
           if (pendingBlocks >= this.batchBlockCount) {
@@ -582,7 +575,7 @@ export class AddressIndexer {
   }
 
   async processBlockHash(hash, expectedHeight = null, options = {}) {
-    const { collect = false, summaryCache = null, touchedSummaries = null } = options;
+    const { collect = false, summaryCache = null } = options;
     if (this.stopping || !this.db) {
       this.logger.debug({ context: { event: 'addressIndexer.block.skip', hash, reason: this.db ? 'stopping' : 'db-closed' } }, 'Skipping block processing during shutdown');
       return;
@@ -601,7 +594,7 @@ export class AddressIndexer {
       const operations = [];
       /** @type {Map<string, AddressSummary>} */
       const summaries = summaryCache ?? new Map();
-      const localTouched = touchedSummaries ?? new Set();
+      const localTouched = new Set();
 
       txCount = Array.isArray(block.tx) ? block.tx.length : 0;
 
@@ -714,7 +707,7 @@ export class AddressIndexer {
       this.syncStats.transactionsProcessed += txCount;
 
       if (collect) {
-        return { operations, height, txCount, hash, summaries: summaryCache ?? summaries, touchedSummaries: localTouched };
+        return { operations, height, txCount, hash, summaries: summaryCache ?? summaries };
       }
 
       await this.commitOperations(operations, {
