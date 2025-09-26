@@ -488,6 +488,7 @@ export class AddressIndexer {
     let pendingTx = 0;
     let pendingHash = null;
     let pendingHeight = null;
+    const batchSummaryCache = batchingEnabled ? new Map() : null;
 
     const flushPending = async () => {
       if (pendingBlocks === 0) {
@@ -504,12 +505,13 @@ export class AddressIndexer {
       pendingTx = 0;
       pendingHash = null;
       pendingHeight = null;
+      batchSummaryCache?.clear();
     };
 
     while (!this.stopping && nextHeight <= bestHeight) {
       this.syncInProgress = true;
       try {
-        const result = await this.processBlockHeight(nextHeight, batchingEnabled ? { collect: true } : undefined);
+        const result = await this.processBlockHeight(nextHeight, batchingEnabled ? { collect: true, summaryCache: batchSummaryCache } : undefined);
         if (batchingEnabled && result?.operations) {
           pendingOperations.push(...result.operations);
           pendingBlocks += 1;
@@ -568,7 +570,7 @@ export class AddressIndexer {
   }
 
   async processBlockHash(hash, expectedHeight = null, options = {}) {
-    const { collect = false } = options;
+    const { collect = false, summaryCache = null } = options;
     if (this.stopping || !this.db) {
       this.logger.debug({ context: { event: 'addressIndexer.block.skip', hash, reason: this.db ? 'stopping' : 'db-closed' } }, 'Skipping block processing during shutdown');
       return;
@@ -586,7 +588,8 @@ export class AddressIndexer {
       /** @type {BatchOperation[]} */
       const operations = [];
       /** @type {Map<string, AddressSummary>} */
-      const summaries = new Map();
+      const summaries = summaryCache ?? new Map();
+      const touchedSummaries = new Set();
 
       txCount = Array.isArray(block.tx) ? block.tx.length : 0;
 
@@ -618,6 +621,7 @@ export class AddressIndexer {
             summary.balanceSat += valueSat;
             summary.utxoCount += 1;
             summary.utxoValueSat += valueSat;
+            touchedSummaries.add(address);
 
             operations.push(/** @type {BatchPutOperation} */ ({
               type: 'put',
@@ -630,21 +634,21 @@ export class AddressIndexer {
                 height
               })
             }));
-            operations.push(/** @type {BatchPutOperation} */ ({
-              type: 'put',
-              key: txKey(address, height, DIRECTION_IN, output.n ?? 0, transaction.txid),
-              value: /** @type {AddressTxRecord} */ ({
-                address,
-                txid: transaction.txid,
-                height,
-                direction: DIRECTION_IN,
-                valueSat,
-                ioIndex: output.n ?? 0,
-                timestamp
-              })
-            }));
+              operations.push(/** @type {BatchPutOperation} */ ({
+                type: 'put',
+                key: txKey(address, height, DIRECTION_IN, output.n ?? 0, transaction.txid),
+                value: /** @type {AddressTxRecord} */ ({
+                  address,
+                  txid: transaction.txid,
+                  height,
+                  direction: DIRECTION_IN,
+                  valueSat,
+                  ioIndex: output.n ?? 0,
+                  timestamp
+                })
+              }));
+            }
           }
-        }
 
         // Inputs (outbound)
         for (const [index, input] of (transaction.vin || []).entries()) {
@@ -672,13 +676,18 @@ export class AddressIndexer {
               height,
               timestamp,
               incrementTx,
-              summary
+              summary,
+              touchedSummaries
             }, operations);
           }
         }
       }
 
-      for (const [address, summary] of summaries.entries()) {
+      for (const address of touchedSummaries) {
+        const summary = summaries.get(address);
+        if (!summary) {
+          continue;
+        }
         operations.push(/** @type {BatchPutOperation} */ ({
           type: 'put',
           key: summaryKey(address),
@@ -788,7 +797,7 @@ export class AddressIndexer {
    * }} payload
    * @param {BatchOperation[]} operations
    */
-  applyOutbound({ address, currentTxid, prevTxid, prevVout, valueSat, height, timestamp, incrementTx, summary }, operations) {
+  applyOutbound({ address, currentTxid, prevTxid, prevVout, valueSat, height, timestamp, incrementTx, summary, touchedSummaries }, operations) {
     summary.totalSentSat += valueSat;
     summary.balanceSat -= valueSat;
     summary.utxoCount = Math.max(0, summary.utxoCount - 1);
@@ -799,6 +808,7 @@ export class AddressIndexer {
     if (typeof height === 'number') {
       summary.lastSeenHeight = summary.lastSeenHeight != null ? Math.max(summary.lastSeenHeight, height) : height;
     }
+    touchedSummaries?.add(address);
 
     operations.push(/** @type {BatchDelOperation} */ ({
       type: 'del',

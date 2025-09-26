@@ -114,6 +114,23 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseBooleanEnv(value) {
+  if (value == null) {
+    return null;
+  }
+  const normalised = value.trim().toLowerCase();
+  if (normalised === '') {
+    return false;
+  }
+  if (['true', '1', 'yes', 'y', 'on'].includes(normalised)) {
+    return true;
+  }
+  if (['false', '0', 'no', 'n', 'off'].includes(normalised)) {
+    return false;
+  }
+  return null;
+}
+
 async function run() {
   const argv = process.argv.slice(2);
   const options = parseArgs(argv);
@@ -176,9 +193,16 @@ async function run() {
     levelCacheMb: toNumber(process.env.ADDRESS_LEVEL_CACHE_MB) ?? (syncStats?.levelCacheBytes ? syncStats.levelCacheBytes / (1024 * 1024) : null),
     levelWriteBufferMb: toNumber(process.env.ADDRESS_LEVEL_WRITE_BUFFER_MB) ?? (syncStats?.levelWriteBufferBytes ? syncStats.levelWriteBufferBytes / (1024 * 1024) : null),
     batchBlocks: toNumber(process.env.ADDRESS_INDEXER_BATCH_BLOCKS) ?? syncStats?.batchBlockCount ?? null,
-    parallelPrevoutEnabled: typeof process.env.ADDRESS_INDEXER_PARALLEL_ENABLED === 'string'
-      ? process.env.ADDRESS_INDEXER_PARALLEL_ENABLED.toLowerCase() === 'true'
-      : syncStats?.parallelPrevoutEnabled ?? null,
+    parallelPrevoutEnabled: (() => {
+      const parsed = parseBooleanEnv(process.env.ADDRESS_INDEXER_PARALLEL_ENABLED);
+      if (parsed != null) {
+        return parsed;
+      }
+      if (typeof syncStats?.parallelPrevoutEnabled === 'boolean') {
+        return syncStats.parallelPrevoutEnabled;
+      }
+      return null;
+    })(),
     rpcMaxSockets: toNumber(process.env.BITCOIN_RPC_MAX_SOCKETS) ?? null
   };
 
