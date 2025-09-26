@@ -24,6 +24,7 @@ const DIRECTION_IN = 'in';
 const DIRECTION_OUT = 'out';
 
 const HR_TO_MS = 1e6;
+const MAX_RECOMMENDED_CONCURRENCY = 8;
 
 function now() {
   return process.hrtime.bigint();
@@ -227,6 +228,7 @@ export class AddressIndexer {
       ttlAutopurge: true
     });
     this.prevoutConcurrency = Math.max(1, config.address.indexerConcurrency);
+    this.parallelPrevoutEnabled = Boolean(config.address.parallelPrevoutEnabled);
     this.levelCacheBytes = config.address.levelCacheBytes;
     this.levelWriteBufferBytes = config.address.levelWriteBufferBytes;
     this.batchBlockCount = Math.max(1, config.address.batchBlockCount);
@@ -280,7 +282,8 @@ export class AddressIndexer {
       levelWriteBufferBytes: this.levelWriteBufferBytes,
       prevoutCacheMax: this.prevoutCacheMax,
       prevoutCacheTtl: this.prevoutCacheTtl,
-      batchBlockCount: this.batchBlockCount
+      batchBlockCount: this.batchBlockCount,
+      parallelPrevoutEnabled: this.parallelPrevoutEnabled
     };
   }
 
@@ -374,9 +377,26 @@ export class AddressIndexer {
         prevoutCacheTtl: this.prevoutCacheTtl,
         levelCacheBytes: this.levelCacheBytes,
         levelWriteBufferBytes: this.levelWriteBufferBytes,
-        batchBlockCount: this.batchBlockCount
+        batchBlockCount: this.batchBlockCount,
+        parallelPrevoutEnabled: this.parallelPrevoutEnabled
       }
     }, 'Address indexer starting');
+    if (!this.parallelPrevoutEnabled && this.prevoutConcurrency > 1) {
+      this.logger.info({
+        context: {
+          event: 'addressIndexer.prevout.parallel.disabled',
+          configuredWorkers: this.prevoutConcurrency
+        }
+      }, 'Prevout parallelism disabled; falling back to sequential fetches despite configured worker count');
+    } else if (this.prevoutConcurrency > MAX_RECOMMENDED_CONCURRENCY) {
+      this.logger.warn({
+        context: {
+          event: 'addressIndexer.prevout.parallel.high',
+          configuredWorkers: this.prevoutConcurrency,
+          recommended: MAX_RECOMMENDED_CONCURRENCY
+        }
+      }, 'Prevout worker concurrency exceeds recommended maximum; monitor Core RPC load');
+    }
     this.registerSignalHandlers();
     this.resetSyncStats();
     await this.initialSync();
@@ -744,7 +764,7 @@ export class AddressIndexer {
     let cacheHits = 0;
     let rpcCalls = 0;
 
-    const tasks = vin.map((input, index) => async () => {
+    const fetchPrevout = async (input, index) => {
       if (!input || input.coinbase) {
         results[index] = null;
         return;
@@ -770,10 +790,18 @@ export class AddressIndexer {
         this.logger.warn({ context: { event: 'addressIndexer.prevout.error', txid: input.txid }, err: error }, 'Failed to fetch prevout');
         results[index] = null;
       }
-    });
+    };
 
     try {
-      await runWithConcurrency(tasks, this.prevoutConcurrency);
+      if (!this.parallelPrevoutEnabled || this.prevoutConcurrency <= 1) {
+        for (let i = 0; i < vin.length; i += 1) {
+          // sequential fetch preserves ordering when parallelism disabled
+          await fetchPrevout(vin[i], i);
+        }
+      } else {
+        const tasks = vin.map((input, index) => () => fetchPrevout(input, index));
+        await runWithConcurrency(tasks, this.prevoutConcurrency);
+      }
       return results;
     } finally {
       const duration = durationMs(startedAt);

@@ -5,7 +5,7 @@
   - [x] Add instrumentation for block processing and prevout fetch durations.
   - [x] Optimize RPC usage (connection pooling, batching, configurable concurrency).
   - [x] Evaluate LevelDB tuning (write buffer, compaction) and apply safe defaults.
-  - [ ] Implement optional parallel prevout fetcher guarded by config flag.
+  - [x] Implement optional parallel prevout fetcher guarded by config flag.
 - [ ] Quality Assurance — (QA)
   - [x] Extend benchmarks (`npm run bench:address`) to record throughput before/after changes.
   - [ ] Add regression tests covering instrumentation output and parallel worker correctness.
@@ -53,10 +53,10 @@ The LevelDB-backed address indexer currently syncs at ~1 block/sec on a local no
 3. Consider grouping multiple blocks per batch when safe (e.g., every 5 blocks) to reduce overhead. ✅ — `ADDRESS_INDEXER_BATCH_BLOCKS` (default 1) batches consecutive blocks during initial sync; logs include aggregated batch size to monitor LevelDB behaviour.
 
 ### 4. Parallelism Enhancements (Dev)
-1. Prototype worker pool for prevout fetching using `Promise.allSettled` limited by concurrency config.
-2. Add config flag `ADDRESS_INDEXER_CONCURRENCY` to control worker count; default to conservative value.
-3. Ensure deterministic ordering and maintain atomic batch writes.
-4. Guard against overloading Core: log warnings when concurrency exceeds recommended values.
+1. Prototype worker pool for prevout fetching using `Promise.allSettled` limited by concurrency config. ✅ — Prevout fetches now use a bounded concurrency helper when `ADDRESS_INDEXER_PARALLEL_ENABLED=true` (default).
+2. Add config flag `ADDRESS_INDEXER_CONCURRENCY` to control worker count; default to conservative value. ✅ — Existing knob remains, with sequential fallback when parallelism disabled.
+3. Ensure deterministic ordering and maintain atomic batch writes. ✅ — Results array preserves vin ordering regardless of parallelism.
+4. Guard against overloading Core: log warnings when concurrency exceeds recommended values. ✅ — Startup warning emitted when configured workers exceed 8.
 
 ### 5. Operational Workarounds (DevOps, Docs)
 1. Provide script/guide for seeding LevelDB from downloadable snapshot or previous run.
