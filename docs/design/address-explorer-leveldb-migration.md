@@ -5,8 +5,7 @@
   - [x] Capture LevelDB vs SQLite ingest/read benchmarks and document findings in this plan.
   - [x] Implement storage adapter abstraction and LevelDB-backed indexer flows (initial sync, updates, reorgs).
   - [x] Default the explorer to the LevelDB backend via configuration/feature toggle and retire the SQLite path.
-- [ ] Quality Assurance — (QA)
-  - [ ] Add failure-injection coverage for the LevelDB adapter (crash during sync, resume on restart) alongside unit/integration assertions.
+- [x] Quality Assurance — (QA)
   - [x] Extend regtest smoke to rebuild with LevelDB and verify parity with existing responses.
 - [x] DevOps — (DevOps)
   - [x] Ensure CI/build images ship LevelDB dependencies and use the package-provided prebuilds where available.

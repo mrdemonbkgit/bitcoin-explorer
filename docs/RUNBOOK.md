@@ -91,6 +91,7 @@ npm run test:regtest
   ```
 - Set `METRICS_INCLUDE_DEFAULT=true` to export Node.js process metrics (heap usage, event loop lag). Default is `false` to avoid leaking host data.
 - When troubleshooting, `curl http://<host>:<port>/metrics` should return 200 with `explorer_http_requests_total`; if disabled it returns 404.
+- Address indexer gauges land under `explorer_address_indexer_*` — monitor `blocks_remaining`, `sync_eta_seconds`, `progress_percent`, `tip_height`, `last_processed_height`, `state{state="synced"}`, and `sync_in_progress` to detect stalls (alert if blocks remaining is non-zero for >15 minutes or the state flips to `degraded`).
 
 ## WebSocket Notifications
 - Set `WEBSOCKET_ENABLED=true` to broadcast ZMQ-driven events (block mined, tx seen) to LAN clients. Default path is `/ws`; adjust with `WEBSOCKET_PATH` or host the gateway on a separate port via `WEBSOCKET_PORT`.
@@ -101,7 +102,7 @@ npm run test:regtest
 
 ## Address/Xpub Explorer
 - Enable the feature with `FEATURE_ADDRESS_EXPLORER=true`. The indexer stores data in `ADDRESS_INDEX_PATH` (default `./data/address-index`) using LevelDB storage.
-- On first start the indexer walks the chain via `getblockhash/getblock` and stores address/UTXO mappings; expect runtime proportional to chain size. Track progress via logs (`addressIndexer.sync.progress` every 100 blocks, `addressIndexer.sync.complete` when finished, or `addressIndexer.sync.halted` if shutdown occurs mid-sync). Checkpoints are persisted after each block, so restarts resume from the last processed height instead of starting over.
+- On first start the indexer walks the chain via `getblockhash/getblock` and stores address/UTXO mappings; expect runtime proportional to chain size. Track progress via logs (`addressIndexer.sync.progress` every 100 blocks, `addressIndexer.sync.complete` when finished, or `addressIndexer.sync.halted` if shutdown occurs mid-sync) or the explorer banner (shows current/target height, throughput, and ETA). Checkpoints are persisted after each block, so restarts resume from the last processed height instead of starting over.
 - Subsequent updates rely on existing ZMQ notifications. If ZMQ is disabled, the indexer periodically polls new blocks during API usage.
 - Xpub views derive the first `ADDRESS_XPUB_GAP_LIMIT` addresses on both external/internal branches and aggregate balances from the index. Adjust the gap limit as needed for larger wallets.
 - For environments without Bitcoin Core access (local unit tests, CI sandboxes), set `FEATURE_ADDRESS_EXPLORER=false` to avoid repeated RPC authentication failures in logs; the indexer will remain inactive.

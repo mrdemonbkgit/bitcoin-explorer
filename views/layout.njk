@@ -25,9 +25,26 @@
     form.search button:hover { background: #0ea5e9; }
     nav.nav { display: flex; gap: 16px; margin-top: 12px; }
     nav.nav a { font-weight: 600; }
+    .indexer-status { border: 1px solid rgba(56, 189, 248, 0.25); background: rgba(15, 23, 42, 0.85); margin-bottom: 24px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
+    .indexer-status[data-state="hidden"] { display: none; }
+    .indexer-status[data-state="degraded"],
+    .indexer-status[data-state="error"] { border-color: rgba(248, 113, 113, 0.45); box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.2); }
+    .indexer-status[data-state="synced"] { border-color: rgba(74, 222, 128, 0.45); box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.15); }
+    .indexer-status__header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .indexer-status__message { font-size: 0.9rem; color: rgba(148, 163, 184, 0.9); }
+    .indexer-status__message--error { color: #fca5a5; }
+    .indexer-status[data-state="synced"] .indexer-status__message { color: rgba(74, 222, 128, 0.9); }
+    .indexer-status__progress-bar { height: 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.2); overflow: hidden; margin-bottom: 12px; }
+    .indexer-status__progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, #38bdf8, #0ea5e9); transition: width 0.45s ease; }
+    .indexer-status[data-state="synced"] .indexer-status__progress-fill { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .indexer-status[data-state="degraded"] .indexer-status__progress-fill,
+    .indexer-status[data-state="error"] .indexer-status__progress-fill { background: linear-gradient(90deg, #f97316, #fb7185); }
+    .indexer-status__metrics { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.9rem; }
+    .indexer-status__metrics span { display: flex; gap: 6px; align-items: baseline; }
+    .indexer-status__metrics .label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(148, 163, 184, 0.7); }
   </style>
 </head>
-<body data-page="{% block page_id %}{% endblock %}" data-ws-enabled="{{ websocket.enabled and 'true' or 'false' }}" data-ws-path="{{ websocket.path }}"{% if websocket.port %} data-ws-port="{{ websocket.port }}"{% endif %}>
+<body data-page="{% block page_id %}{% endblock %}" data-ws-enabled="{{ websocket.enabled and 'true' or 'false' }}" data-ws-path="{{ websocket.path }}"{% if websocket.port %} data-ws-port="{{ websocket.port }}"{% endif %} data-address-enabled="{{ features.addressExplorer and 'true' or 'false' }}">
   <header>
     <h1><a href="/">Slim Bitcoin Explorer</a></h1>
     <p class="muted">Self-hosted, LAN-only explorer backed by Bitcoin Core JSON-RPC.</p>
@@ -39,6 +56,24 @@
     </nav>
   </header>
   <main>
+    {% if features.addressExplorer %}
+      <section id="indexer-status-banner" class="card indexer-status" data-state="hidden">
+        <div class="indexer-status__header">
+          <strong>Address Indexer</strong>
+          <span id="indexer-status-message" class="indexer-status__message">Loading status...</span>
+        </div>
+        <div class="indexer-status__progress-bar">
+          <div class="indexer-status__progress-fill" data-role="indexer-progress-fill"></div>
+        </div>
+        <div class="indexer-status__metrics">
+          <span><span class="label">Height</span><span id="indexer-last-height">-</span>/<span id="indexer-tip-height">-</span></span>
+          <span><span class="label">Progress</span><span id="indexer-progress-percent">0</span>%</span>
+          <span><span class="label">Remaining</span><span id="indexer-blocks-remaining">-</span></span>
+          <span><span class="label">Speed</span>~<span id="indexer-throughput-bps">0</span> blk/s</span>
+          <span><span class="label">ETA</span><span id="indexer-eta">n/a</span></span>
+        </div>
+      </section>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
   {% block scripts %}{% endblock %}
@@ -296,5 +331,209 @@
       })();
     </script>
   {% endif %}
+  <script>
+    (function () {
+      const body = document.body;
+      if (!body || body.dataset.addressEnabled !== 'true') {
+        return;
+      }
+
+      const banner = document.getElementById('indexer-status-banner');
+      if (!banner) {
+        return;
+      }
+
+      const elements = {
+        message: document.getElementById('indexer-status-message'),
+        progressFill: banner.querySelector('[data-role="indexer-progress-fill"]'),
+        progressPercent: document.getElementById('indexer-progress-percent'),
+        blocksRemaining: document.getElementById('indexer-blocks-remaining'),
+        throughput: document.getElementById('indexer-throughput-bps'),
+        eta: document.getElementById('indexer-eta'),
+        lastHeight: document.getElementById('indexer-last-height'),
+        tipHeight: document.getElementById('indexer-tip-height')
+      };
+
+      const numberFormatter = new Intl.NumberFormat();
+      const percentFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+      const speedFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+
+      let pollDelayMs = 5000;
+      let pollTimer;
+
+      function formatEta(ms) {
+        if (typeof ms !== 'number' || !Number.isFinite(ms) || ms <= 0) {
+          return 'n/a';
+        }
+        const totalSeconds = Math.round(ms / 1000);
+        if (totalSeconds < 60) {
+          return `${totalSeconds}s`;
+        }
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        if (minutes < 60) {
+          return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+        }
+        const hours = Math.floor(minutes / 60);
+        const remMinutes = minutes % 60;
+        if (hours < 48) {
+          return remMinutes > 0 ? `${hours}h ${remMinutes}m` : `${hours}h`;
+        }
+        const days = Math.floor(hours / 24);
+        const remHours = hours % 24;
+        return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+      }
+
+      function applyDatasetState(state) {
+        const applied = state === 'error' ? 'degraded' : state;
+        banner.dataset.state = applied || 'unknown';
+      }
+
+      function updateStatus(data) {
+        if (!data || data.featureEnabled === false) {
+          banner.dataset.state = 'hidden';
+          pollDelayMs = 30000;
+          return;
+        }
+
+        const state = data.state || 'unknown';
+        applyDatasetState(state);
+
+        let message;
+        switch (state) {
+          case 'synced':
+            message = 'Indexer synced with local chain tip';
+            if (data.chainTip?.stale) {
+              message += ' (awaiting next tip)';
+            }
+            break;
+          case 'catching_up':
+            message = 'Indexer catching up to local chain tip';
+            break;
+          case 'starting':
+            message = 'Preparing address indexer';
+            break;
+          case 'degraded':
+          case 'error':
+            message = data.error || data.chainTip?.error || 'Indexer degraded - see RUNBOOK';
+            break;
+          default:
+            message = 'Loading indexer status';
+            break;
+        }
+
+        const isErrorState = state === 'degraded' || state === 'error';
+        if (elements.message) {
+          elements.message.textContent = message;
+          elements.message.classList.toggle('indexer-status__message--error', isErrorState);
+        }
+
+        const progressValue = data.progressPercent != null ? Math.max(0, Math.min(100, data.progressPercent)) : null;
+        if (elements.progressFill) {
+          const width = progressValue != null ? progressValue : 0;
+          elements.progressFill.style.width = `${width}%`;
+        }
+        if (elements.progressPercent) {
+          elements.progressPercent.textContent = progressValue != null ? percentFormatter.format(progressValue) : 'n/a';
+        }
+        if (elements.blocksRemaining) {
+          elements.blocksRemaining.textContent = data.blocksRemaining != null ? numberFormatter.format(data.blocksRemaining) : 'n/a';
+        }
+        if (elements.throughput) {
+          const blocksPerSecond = data.throughput?.blocksPerSecond;
+          elements.throughput.textContent = blocksPerSecond != null ? speedFormatter.format(blocksPerSecond) : 'n/a';
+        }
+        if (elements.eta) {
+          elements.eta.textContent = formatEta(data.estimatedCompletionMs);
+        }
+        if (elements.lastHeight) {
+          const value = data.lastProcessed?.height;
+          elements.lastHeight.textContent = value != null ? numberFormatter.format(value) : '-';
+        }
+        if (elements.tipHeight) {
+          const tipValue = data.chainTip?.height;
+          elements.tipHeight.textContent = tipValue != null ? numberFormatter.format(tipValue) : '-';
+        }
+
+        if (state === 'synced') {
+          pollDelayMs = 30000;
+        } else if (isErrorState) {
+          pollDelayMs = 10000;
+        } else {
+          pollDelayMs = 5000;
+        }
+      }
+
+      function showError(message) {
+        applyDatasetState('degraded');
+        if (elements.message) {
+          elements.message.textContent = message || 'Indexer status unavailable';
+          elements.message.classList.add('indexer-status__message--error');
+        }
+        if (elements.progressFill) {
+          elements.progressFill.style.width = '0%';
+        }
+        if (elements.progressPercent) {
+          elements.progressPercent.textContent = 'n/a';
+        }
+        if (elements.blocksRemaining) {
+          elements.blocksRemaining.textContent = 'n/a';
+        }
+        if (elements.throughput) {
+          elements.throughput.textContent = 'n/a';
+        }
+        if (elements.eta) {
+          elements.eta.textContent = 'n/a';
+        }
+        if (elements.lastHeight) {
+          elements.lastHeight.textContent = '-';
+        }
+        if (elements.tipHeight) {
+          elements.tipHeight.textContent = '-';
+        }
+        pollDelayMs = 10000;
+      }
+
+      function scheduleNext() {
+        if (pollTimer) {
+          window.clearTimeout(pollTimer);
+        }
+        pollTimer = window.setTimeout(() => {
+          refreshStatus();
+        }, pollDelayMs);
+      }
+
+      async function refreshStatus(options = {}) {
+        if (options.immediate && pollTimer) {
+          window.clearTimeout(pollTimer);
+          pollTimer = undefined;
+        }
+        try {
+          const response = await fetch('/api/v1/indexer/status', { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error(`Request failed (${response.status})`);
+          }
+          const payload = await response.json();
+          if (!payload || typeof payload !== 'object' || !payload.data) {
+            throw new Error('Malformed status payload');
+          }
+          updateStatus(payload.data);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Indexer status unavailable';
+          showError(message);
+        } finally {
+          scheduleNext();
+        }
+      }
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          refreshStatus({ immediate: true });
+        }
+      });
+
+      refreshStatus();
+    })();
+  </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-import { Counter, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
+import { Counter, Histogram, Registry, collectDefaultMetrics, Gauge } from 'prom-client';
 import { config } from '../config.js';
 
 const HR_TO_SECONDS = 1e9;
@@ -19,7 +19,8 @@ function createDisabledMetrics(path) {
     recordWebsocketConnection: NOOP,
     recordWebsocketMessage: NOOP,
     recordAddressIndexerBlockDuration: NOOP,
-    recordAddressIndexerPrevoutDuration: NOOP
+    recordAddressIndexerPrevoutDuration: NOOP,
+    recordAddressIndexerSyncStatus: NOOP
   };
 }
 
@@ -46,6 +47,15 @@ function normaliseRoute(req) {
     return path || req.originalUrl;
   }
   return 'unknown';
+}
+
+const INDEXER_STATES = ['disabled', 'unknown', 'starting', 'catching_up', 'synced', 'degraded', 'error'];
+
+function sanitiseNumber(value, fallback = 0) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return value;
 }
 
 function createEnabledMetrics({ path, includeDefault }) {
@@ -130,6 +140,49 @@ function createEnabledMetrics({ path, includeDefault }) {
     registers: [registry]
   });
 
+  const addressIndexerBlocksRemaining = new Gauge({
+    name: 'explorer_address_indexer_blocks_remaining',
+    help: 'Blocks remaining before the address indexer catches up to the chain tip',
+    registers: [registry]
+  });
+
+  const addressIndexerEtaSeconds = new Gauge({
+    name: 'explorer_address_indexer_sync_eta_seconds',
+    help: 'Estimated seconds remaining for the address indexer to complete catch-up',
+    registers: [registry]
+  });
+
+  const addressIndexerProgressPercent = new Gauge({
+    name: 'explorer_address_indexer_progress_percent',
+    help: 'Address indexer progress percentage (0-100)',
+    registers: [registry]
+  });
+
+  const addressIndexerTipHeight = new Gauge({
+    name: 'explorer_address_indexer_tip_height',
+    help: 'Latest chain tip height observed when recording address indexer status',
+    registers: [registry]
+  });
+
+  const addressIndexerLastProcessedHeight = new Gauge({
+    name: 'explorer_address_indexer_last_processed_height',
+    help: 'Last processed block height stored by the address indexer',
+    registers: [registry]
+  });
+
+  const addressIndexerStateGauge = new Gauge({
+    name: 'explorer_address_indexer_state',
+    help: 'Current address indexer state indicator (1 means active state)',
+    labelNames: ['state'],
+    registers: [registry]
+  });
+
+  const addressIndexerSyncFlag = new Gauge({
+    name: 'explorer_address_indexer_sync_in_progress',
+    help: 'Whether the address indexer is actively syncing (1) or idle (0)',
+    registers: [registry]
+  });
+
   async function handler(_req, res, next) {
     try {
       res.setHeader('Content-Type', registry.contentType);
@@ -185,6 +238,31 @@ function createEnabledMetrics({ path, includeDefault }) {
     recordAddressIndexerPrevoutDuration({ source, durationMs }) {
       const safeSource = source ?? 'unknown';
       addressIndexerPrevoutDurationSeconds.observe({ source: safeSource }, (durationMs ?? 0) / MS_TO_SECONDS);
+    },
+    recordAddressIndexerSyncStatus({
+      blocksRemaining,
+      progressPercent,
+      estimatedCompletionSeconds,
+      state,
+      tipHeight,
+      lastProcessedHeight,
+      syncInProgress
+    }) {
+      const remaining = Math.max(0, sanitiseNumber(blocksRemaining));
+      const progress = Math.min(100, Math.max(0, sanitiseNumber(progressPercent)));
+      const etaSeconds = Math.max(0, sanitiseNumber(estimatedCompletionSeconds));
+
+      addressIndexerBlocksRemaining.set(remaining);
+      addressIndexerProgressPercent.set(progress);
+      addressIndexerEtaSeconds.set(etaSeconds);
+      addressIndexerTipHeight.set(Math.max(0, sanitiseNumber(tipHeight)));
+      addressIndexerLastProcessedHeight.set(Math.max(0, sanitiseNumber(lastProcessedHeight)));
+      addressIndexerSyncFlag.set(syncInProgress ? 1 : 0);
+
+      const activeState = state && INDEXER_STATES.includes(state) ? state : 'unknown';
+      for (const label of INDEXER_STATES) {
+        addressIndexerStateGauge.labels(label).set(label === activeState ? 1 : 0);
+      }
     }
   };
 }
@@ -205,7 +283,8 @@ export function createNoopRecorder() {
     recordWebsocketConnection: NOOP,
     recordWebsocketMessage: NOOP,
     recordAddressIndexerBlockDuration: NOOP,
-    recordAddressIndexerPrevoutDuration: NOOP
+    recordAddressIndexerPrevoutDuration: NOOP,
+    recordAddressIndexerSyncStatus: NOOP
   };
 }
 

@@ -3,6 +3,7 @@ import * as bip32 from 'bip32';
 import { config } from '../config.js';
 import { NotFoundError, BadRequestError } from '../errors.js';
 import { startAddressIndexer, getAddressIndexer } from '../infra/addressIndexer.js';
+import { metrics } from '../infra/metrics.js';
 
 function ensureIndexerStarted() {
   if (!config.address.enabled) {
@@ -12,6 +13,23 @@ function ensureIndexerStarted() {
     return startAddressIndexer();
   }
   return Promise.resolve(getAddressIndexer());
+}
+
+function createEmptyStatus() {
+  return {
+    syncInProgress: false,
+    lastProcessed: null,
+    chainTip: null,
+    blocksRemaining: null,
+    progressPercent: null,
+    throughput: {
+      sampleCount: 0,
+      windowMs: 0,
+      blocksPerSecond: null,
+      transactionsPerSecond: null
+    },
+    estimatedCompletionMs: null
+  };
 }
 
 export async function getAddressDetails(address, { page = 1, pageSize = 25 } = {}) {
@@ -149,4 +167,85 @@ export async function primeAddressIndexer() {
     return null;
   }
   return ensureIndexerStarted();
+}
+
+export async function getIndexerStatus({ refreshTip = false } = {}) {
+  if (!config.address.enabled) {
+    metrics.recordAddressIndexerSyncStatus({
+      state: 'disabled',
+      blocksRemaining: null,
+      progressPercent: null,
+      estimatedCompletionSeconds: null,
+      tipHeight: null,
+      lastProcessedHeight: null,
+      syncInProgress: false
+    });
+    return {
+      featureEnabled: false,
+      state: 'disabled',
+      ...createEmptyStatus()
+    };
+  }
+
+  try {
+    await ensureIndexerStarted();
+  } catch (error) {
+    metrics.recordAddressIndexerSyncStatus({
+      state: 'error',
+      blocksRemaining: null,
+      progressPercent: null,
+      estimatedCompletionSeconds: null,
+      tipHeight: null,
+      lastProcessedHeight: null,
+      syncInProgress: false
+    });
+    return {
+      featureEnabled: true,
+      state: 'error',
+      error: error instanceof Error ? error.message : 'Failed to start address indexer',
+      ...createEmptyStatus()
+    };
+  }
+
+  const indexer = getAddressIndexer();
+  if (!indexer) {
+    metrics.recordAddressIndexerSyncStatus({
+      state: 'starting',
+      blocksRemaining: null,
+      progressPercent: null,
+      estimatedCompletionSeconds: null,
+      tipHeight: null,
+      lastProcessedHeight: null,
+      syncInProgress: true
+    });
+    return {
+      featureEnabled: true,
+      state: 'starting',
+      ...createEmptyStatus()
+    };
+  }
+
+  try {
+    const status = await indexer.getStatus({ refreshTip });
+    return {
+      featureEnabled: true,
+      ...status
+    };
+  } catch (error) {
+    metrics.recordAddressIndexerSyncStatus({
+      state: 'error',
+      blocksRemaining: null,
+      progressPercent: null,
+      estimatedCompletionSeconds: null,
+      tipHeight: null,
+      lastProcessedHeight: null,
+      syncInProgress: false
+    });
+    return {
+      featureEnabled: true,
+      state: 'error',
+      error: error instanceof Error ? error.message : 'Failed to retrieve indexer status',
+      ...createEmptyStatus()
+    };
+  }
 }

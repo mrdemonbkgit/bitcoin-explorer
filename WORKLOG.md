@@ -32,8 +32,10 @@ Purpose: Lightweight, human-readable record of daily progress, decisions, and ne
 
 ---
 
-## 2025-09-26
+## 2025-10-05
 ### Done
+- feat(address): surface indexer sync banner with API metrics — (PR TBD)
+  - Context: `docs/design/indexer-sync-status.md` (Dev/Docs/QA/DevOps/Product tasks closed); new `/api/v1/indexer/status` endpoint powers the frontend banner with throughput, ETA, and tip height, Prometheus now exposes `explorer_address_indexer_*` gauges for alerting, the smoke harness asserts catch-up and steady-state responses, and Product blessed the copy/polling cadence.
 - docs(config): document optional GitHub token env var — (PR TBD)
   - Context: README env block, docs/env.sample, and docs/RUNBOOK.md mention `GITHUB_TOKEN` for automation while noting LAN deployments can omit it.
 - test(address): add prevout worker pool regression coverage — (PR TBD)

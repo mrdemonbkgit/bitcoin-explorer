@@ -21,6 +21,7 @@ A lightweight, LAN-first Bitcoin block explorer that runs alongside your own Bit
 - **Smart search** – accepts heights, block hashes, txids, addresses, and xpubs (routes to the appropriate view).
 - **Mempool dashboard** *(feature flagged)* – live histogram and recent transactions, refreshed via ZMQ/WebSockets when enabled.
 - **Address explorer** *(feature flagged)* – LevelDB-backed balances, UTXOs, and paginated history for any address.
+- **Indexer sync status** – In-app banner shows LevelDB catch-up progress with current height, throughput, and ETA so operators can monitor bootstrap health.
 - **Xpub explorer** *(feature flagged)* – derives the first `ADDRESS_XPUB_GAP_LIMIT` receive/change paths with balances and activity.
 - **JSON API** – `/api/v1/*` endpoints mirror the SSR views for automation and integrations.
 - **Prometheus metrics** *(feature flagged)* – `/metrics` exposes HTTP/RPC/cache/indexer counters and histograms.

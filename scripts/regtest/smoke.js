@@ -163,6 +163,8 @@ async function main() {
 
     const miningAddress = await rpc(auth, 'getnewaddress', ['miner']);
     await rpc(auth, 'generatetoaddress', [101, miningAddress]);
+    // Generate additional blocks to create a meaningful backlog for the address indexer.
+    await rpc(auth, 'generatetoaddress', [200, miningAddress]);
 
     process.env.BITCOIN_RPC_URL = RPC_URL;
     process.env.BITCOIN_RPC_COOKIE = cookiePath;
@@ -207,7 +209,35 @@ async function main() {
     }
 
     let addressIndexerModule = null;
+    async function fetchIndexerStatus() {
+      const response = await agent.get('/api/v1/indexer/status');
+      if (response.status !== 200) {
+        throw new Error(`Indexer status endpoint returned ${response.status}`);
+      }
+      return response.body?.data;
+    }
+
+    let sawCatchingUpState = false;
+
     if (addressCheckEnabled) {
+      if (!homeResponse.text.includes('Address Indexer')) {
+        throw new Error('Address indexer banner missing from home page');
+      }
+
+      await waitFor(async () => {
+        const status = await fetchIndexerStatus();
+        if (!status || status.featureEnabled === false) {
+          return false;
+        }
+        if (status.state === 'catching_up') {
+          if (typeof status.progressPercent === 'number' && status.progressPercent < 100) {
+            sawCatchingUpState = true;
+          }
+          return true;
+        }
+        return status.state === 'synced';
+      }, { timeoutMs: 20000, intervalMs: 500, errorMessage: 'Indexer status endpoint did not report progress' });
+
       addressIndexerModule = await import('../../src/infra/addressIndexer.js');
       await waitFor(async () => {
         const indexer = addressIndexerModule.getAddressIndexer();
@@ -217,6 +247,18 @@ async function main() {
         const lastProcessed = Number(await indexer.getMetadata('last_processed_height', -1));
         return Number.isFinite(lastProcessed) && lastProcessed >= tipHeight;
       }, { timeoutMs: 120000, errorMessage: 'Address indexer did not catch up to initial tip' });
+
+      if (!sawCatchingUpState) {
+        console.warn('[regtest] Indexer reached sync without observable catching_up state');
+      }
+
+      const syncedStatus = await fetchIndexerStatus();
+      if (!syncedStatus || syncedStatus.state !== 'synced' || syncedStatus.blocksRemaining !== 0) {
+        throw new Error('Indexer status did not report synced state after catch-up');
+      }
+      if (typeof syncedStatus.progressPercent === 'number' && syncedStatus.progressPercent < 99.5) {
+        throw new Error('Indexer progress did not reach completion after catch-up');
+      }
     }
 
     const recipient = await rpc(auth, 'getnewaddress', ['recipient']);
@@ -283,6 +325,14 @@ async function main() {
         const lastProcessed = Number(await indexer.getMetadata('last_processed_height', -1));
         return Number.isFinite(lastProcessed) && lastProcessed >= tipAfterHeight;
       }, { timeoutMs: 120000, errorMessage: 'Address indexer did not catch up to confirmed tip' });
+
+      const statusAfterConfirmation = await fetchIndexerStatus();
+      if (!statusAfterConfirmation || statusAfterConfirmation.state !== 'synced') {
+        throw new Error('Indexer status did not remain synced after processing new block');
+      }
+      if ((statusAfterConfirmation.lastProcessed?.height ?? -1) < tipAfterHeight) {
+        throw new Error('Indexer status did not reflect latest processed height');
+      }
 
       await waitFor(async () => {
         const addressResponse = await agent.get(`/api/v1/address/${recipient}`);

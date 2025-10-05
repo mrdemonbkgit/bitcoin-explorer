@@ -26,6 +26,9 @@ const DIRECTION_OUT = 'out';
 
 const HR_TO_MS = 1e6;
 const MAX_RECOMMENDED_CONCURRENCY = 8;
+const THROUGHPUT_SAMPLE_LIMIT = 120;
+const CHAIN_TIP_CACHE_TTL_MS = 5000;
+const CHAIN_TIP_STALE_THRESHOLD_MS = 15000;
 
 function now() {
   return process.hrtime.bigint();
@@ -60,6 +63,63 @@ function createEmptySyncStats() {
     transactionsProcessed: 0,
     prevoutCacheHits: 0,
     prevoutRpcCalls: 0
+  };
+}
+
+function describeError(error) {
+  if (!error) {
+    return null;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function computeThroughput(samples) {
+  if (!Array.isArray(samples) || samples.length === 0) {
+    return {
+      sampleCount: 0,
+      windowMs: 0,
+      blocksPerSecond: null,
+      transactionsPerSecond: null
+    };
+  }
+
+  const sorted = [...samples].sort((a, b) => a.completedAt - b.completedAt);
+  const totalDurationMs = sorted.reduce((sum, sample) => sum + (sample.durationMs ?? 0), 0);
+  const totalTx = sorted.reduce((sum, sample) => sum + (sample.txCount ?? 0), 0);
+  const sampleCount = sorted.length;
+
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+
+  let windowMs = Math.max(0, (last.completedAt ?? 0) - (first.completedAt ?? 0));
+  if (windowMs <= 0) {
+    windowMs = totalDurationMs;
+  }
+
+  if (!Number.isFinite(windowMs) || windowMs <= 0) {
+    return {
+      sampleCount,
+      windowMs: 0,
+      blocksPerSecond: null,
+      transactionsPerSecond: null
+    };
+  }
+
+  const windowSeconds = windowMs / 1000;
+  const blocksPerSecond = sampleCount / windowSeconds;
+  const transactionsPerSecond = totalTx / windowSeconds;
+
+  return {
+    sampleCount,
+    windowMs,
+    blocksPerSecond,
+    transactionsPerSecond
   };
 }
 
@@ -100,6 +160,15 @@ function createEmptySyncStats() {
  * @typedef {{ type: 'put'; key: string; value: unknown }} BatchPutOperation
  * @typedef {{ type: 'del'; key: string }} BatchDelOperation
  * @typedef {BatchPutOperation | BatchDelOperation} BatchOperation
+ */
+
+/**
+ * @typedef {Object} ChainTipSnapshot
+ * @property {number|null} height
+ * @property {string|null} hash
+ * @property {number} fetchedAt
+ * @property {string|null} error
+ * @property {string|null} hashError
  */
 
 let singletonIndexer = null;
@@ -241,6 +310,18 @@ export class AddressIndexer {
     this.syncInProgress = false;
     this.syncChain = Promise.resolve();
     this.syncStats = createEmptySyncStats();
+    this.throughputSamples = [];
+    this.lastProcessedHeight = null;
+    this.lastProcessedHash = null;
+    this.lastProcessedAt = null;
+    /** @type {ChainTipSnapshot} */
+    this.chainTipCache = {
+      height: null,
+      hash: null,
+      fetchedAt: 0,
+      error: null,
+      hashError: null
+    };
   }
 
   async open() {
@@ -277,6 +358,7 @@ export class AddressIndexer {
 
   resetSyncStats() {
     this.syncStats = createEmptySyncStats();
+    this.throughputSamples = [];
   }
 
   getSyncStats() {
@@ -289,6 +371,198 @@ export class AddressIndexer {
       prevoutCacheTtl: this.prevoutCacheTtl,
       batchBlockCount: this.batchBlockCount,
       parallelPrevoutEnabled: this.parallelPrevoutEnabled
+    };
+  }
+
+  recordBlockSample({ height, hash, txCount, durationMs }) {
+    const nowMs = Date.now();
+
+    if (typeof height === 'number' && Number.isFinite(height)) {
+      this.lastProcessedHeight = height;
+      if (this.chainTipCache.height == null || height >= this.chainTipCache.height) {
+        this.chainTipCache = {
+          height,
+          hash: hash ?? this.chainTipCache.hash ?? null,
+          fetchedAt: nowMs,
+          error: null,
+          hashError: null
+        };
+      } else if (this.chainTipCache) {
+        this.chainTipCache = {
+          ...this.chainTipCache,
+          error: null
+        };
+      }
+    }
+
+    if (typeof hash === 'string' && hash) {
+      this.lastProcessedHash = hash;
+    }
+
+    this.lastProcessedAt = nowMs;
+
+    this.throughputSamples.push({
+      completedAt: nowMs,
+      durationMs: Math.max(0, durationMs ?? 0),
+      txCount: Math.max(0, txCount ?? 0)
+    });
+
+    if (this.throughputSamples.length > THROUGHPUT_SAMPLE_LIMIT) {
+      this.throughputSamples.shift();
+    }
+  }
+
+  async loadExistingProgress() {
+    if (!this.db) {
+      return;
+    }
+    const storedHeight = this.toNumberOrNull(await this.getMetadata('last_processed_height', null));
+    this.lastProcessedHeight = storedHeight != null ? Number(storedHeight) : null;
+    const storedHash = await this.getMetadata('last_processed_hash', null);
+    this.lastProcessedHash = typeof storedHash === 'string' ? storedHash : null;
+  }
+
+  /**
+   * @param {{ forceRefresh?: boolean }} [options]
+   * @returns {Promise<ChainTipSnapshot>}
+   */
+  async getChainTip({ forceRefresh = false } = {}) {
+    const nowMs = Date.now();
+    const cached = this.chainTipCache;
+    const cacheFresh = !forceRefresh
+      && cached.height != null
+      && (nowMs - (cached.fetchedAt ?? 0)) < CHAIN_TIP_CACHE_TTL_MS
+      && !cached.error;
+
+    if (cacheFresh) {
+      return cached;
+    }
+
+    try {
+      const height = await rpcCall('getblockcount');
+      let hash = null;
+      let hashError = null;
+      try {
+        hash = await rpcCall('getblockhash', [height]);
+      } catch (error) {
+        hashError = describeError(error);
+        this.logger.debug({
+          context: {
+            event: 'addressIndexer.tip.hash.error',
+            height,
+            hashError
+          }
+        }, 'Failed to resolve tip hash for indexer status');
+      }
+
+      this.chainTipCache = {
+        height,
+        hash,
+        fetchedAt: nowMs,
+        error: null,
+        hashError
+      };
+    } catch (error) {
+      this.chainTipCache = {
+        height: null,
+        hash: null,
+        fetchedAt: nowMs,
+        error: describeError(error),
+        hashError: null
+      };
+    }
+
+    return this.chainTipCache;
+  }
+
+  async getStatus({ refreshTip = false } = {}) {
+    const nowMs = Date.now();
+    const tipInfo = await this.getChainTip({ forceRefresh: refreshTip });
+
+    const tipHeight = Number.isFinite(tipInfo.height) ? Number(tipInfo.height) : null;
+    const tipHash = typeof tipInfo.hash === 'string' ? tipInfo.hash : null;
+
+    const lastHeight = Number.isFinite(this.lastProcessedHeight)
+      ? Number(this.lastProcessedHeight)
+      : null;
+
+    const blocksRemaining = (tipHeight != null && lastHeight != null)
+      ? Math.max(0, tipHeight - lastHeight)
+      : null;
+
+    let progressPercent = null;
+    if (tipHeight != null && tipHeight >= 0 && lastHeight != null && lastHeight >= 0) {
+      const numerator = Math.min(lastHeight, tipHeight) + 1;
+      const denominator = tipHeight + 1;
+      if (denominator > 0) {
+        const rawPercent = (numerator / denominator) * 100;
+        progressPercent = Math.max(0, Math.min(100, rawPercent));
+      } else {
+        progressPercent = 100;
+      }
+    }
+
+    const throughput = computeThroughput(this.throughputSamples);
+    const blocksPerSecond = throughput.blocksPerSecond != null ? Number(throughput.blocksPerSecond) : null;
+    const transactionsPerSecond = throughput.transactionsPerSecond != null ? Number(throughput.transactionsPerSecond) : null;
+
+    let estimatedCompletionMs = null;
+    if (blocksRemaining != null && blocksRemaining > 0 && blocksPerSecond && blocksPerSecond > 0) {
+      estimatedCompletionMs = Math.round((blocksRemaining / blocksPerSecond) * 1000);
+    }
+
+    const tipFetchedAt = tipInfo.fetchedAt ?? 0;
+    const tipStale = nowMs - tipFetchedAt > CHAIN_TIP_STALE_THRESHOLD_MS;
+
+    const state = (() => {
+      if (tipInfo.error) {
+        return 'degraded';
+      }
+      if (blocksRemaining == null) {
+        return 'unknown';
+      }
+      if (blocksRemaining === 0) {
+        return 'synced';
+      }
+      return 'catching_up';
+    })();
+
+    metrics.recordAddressIndexerSyncStatus({
+      state,
+      blocksRemaining,
+      progressPercent,
+      estimatedCompletionSeconds: estimatedCompletionMs != null ? estimatedCompletionMs / 1000 : null,
+      tipHeight,
+      lastProcessedHeight: lastHeight,
+      syncInProgress: Boolean(this.syncInProgress)
+    });
+
+    return {
+      state,
+      syncInProgress: Boolean(this.syncInProgress),
+      lastProcessed: {
+        height: lastHeight,
+        hash: this.lastProcessedHash ?? null,
+        updatedAt: this.lastProcessedAt ? new Date(this.lastProcessedAt).toISOString() : null
+      },
+      chainTip: {
+        height: tipHeight,
+        hash: tipHash,
+        updatedAt: tipFetchedAt ? new Date(tipFetchedAt).toISOString() : null,
+        stale: tipHeight == null ? true : tipStale,
+        error: tipInfo.error,
+        hashError: tipInfo.hashError ?? null
+      },
+      blocksRemaining,
+      progressPercent: progressPercent != null ? Math.round(progressPercent * 100) / 100 : null,
+      throughput: {
+        sampleCount: throughput.sampleCount,
+        windowMs: throughput.windowMs,
+        blocksPerSecond,
+        transactionsPerSecond
+      },
+      estimatedCompletionMs,
+      syncStats: this.getSyncStats()
     };
   }
 
@@ -427,6 +701,8 @@ export class AddressIndexer {
     }
     this.stopping = false;
     await this.open();
+    await this.loadExistingProgress();
+    await this.getChainTip({ forceRefresh: true }).catch(() => {});
     this.logger.info({
       context: {
         event: 'addressIndexer.start',
@@ -469,8 +745,27 @@ export class AddressIndexer {
   }
 
   async initialSync() {
-    const bestHeight = await rpcCall('getblockcount');
-    const lastProcessed = Number(this.toNumberOrNull(await this.getMetadata('last_processed_height', -1)));
+    const tipInfo = await this.getChainTip({ forceRefresh: true });
+    if (tipInfo.error || tipInfo.height == null) {
+      const reason = tipInfo.error ?? 'unknown';
+      this.logger.error({
+        context: {
+          event: 'addressIndexer.sync.tip.unavailable',
+          reason
+        }
+      }, 'Unable to determine chain tip before initial sync');
+      throw new Error(`Unable to determine chain tip: ${reason}`);
+    }
+
+    const bestHeight = Number(tipInfo.height);
+
+    let lastProcessed = Number.isFinite(this.lastProcessedHeight)
+      ? Number(this.lastProcessedHeight)
+      : null;
+    if (!Number.isFinite(lastProcessed)) {
+      const stored = this.toNumberOrNull(await this.getMetadata('last_processed_height', -1));
+      lastProcessed = Number.isFinite(stored) ? Number(stored) : -1;
+    }
     let nextHeight = lastProcessed + 1;
     const startHeight = nextHeight;
     const totalBlocks = bestHeight - startHeight + 1;
@@ -585,6 +880,7 @@ export class AddressIndexer {
     let outcome = 'success';
     let height = expectedHeight;
     let txCount = 0;
+    let processedSuccessfully = false;
 
     try {
       const block = await fetchBlockWithRetry(hash, this.logger);
@@ -706,6 +1002,8 @@ export class AddressIndexer {
       this.syncStats.blocksProcessed += 1;
       this.syncStats.transactionsProcessed += txCount;
 
+      processedSuccessfully = true;
+
       if (collect) {
         return { operations, height, txCount, hash, summaries: summaryCache ?? summaries };
       }
@@ -721,6 +1019,9 @@ export class AddressIndexer {
       throw error;
     } finally {
       const totalDuration = durationMs(startedAt);
+      if (processedSuccessfully && typeof height === 'number') {
+        this.recordBlockSample({ height, hash, txCount, durationMs: totalDuration });
+      }
       this.logger.debug({
         context: {
           event: 'addressIndexer.block.duration',

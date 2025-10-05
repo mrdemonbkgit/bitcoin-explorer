@@ -20,6 +20,15 @@ describe('metrics module', () => {
 
     instance.observeHttpRequest({ req, method: 'GET', statusCode: 200, startedAt });
     instance.observeRpcRequest({ method: 'getblockcount', outcome: 'success', durationMs: 42 });
+    instance.recordAddressIndexerSyncStatus({
+      state: 'catching_up',
+      blocksRemaining: 42,
+      progressPercent: 12.5,
+      estimatedCompletionSeconds: 600,
+      tipHeight: 201,
+      lastProcessedHeight: 159,
+      syncInProgress: true
+    });
 
     const httpMetric = instance.registry.getSingleMetric('explorer_http_requests_total');
     const httpValues = (await httpMetric.get()).values;
@@ -43,5 +52,14 @@ describe('metrics module', () => {
     expect(setHeader).toHaveBeenCalledWith('Content-Type', instance.registry.contentType);
     expect(send).toHaveBeenCalledOnce();
     expect(String(send.mock.calls[0][0])).toContain('explorer_http_requests_total');
+
+    const blocksRemainingGauge = instance.registry.getSingleMetric('explorer_address_indexer_blocks_remaining');
+    const blocksValues = (await blocksRemainingGauge.get()).values;
+    expect(blocksValues[0].value).toBe(42);
+
+    const stateGauge = instance.registry.getSingleMetric('explorer_address_indexer_state');
+    const stateValues = (await stateGauge.get()).values;
+    const catchingUpEntry = stateValues.find((entry) => entry.labels.state === 'catching_up');
+    expect(catchingUpEntry?.value).toBe(1);
   });
 });

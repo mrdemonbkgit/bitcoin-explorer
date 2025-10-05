@@ -111,3 +111,4 @@ Runs install, build, and unit tests on push and PR.
 - Content: "Done", "In Progress", "Next", "Blockers/Risks", and links to PRs/issues and relevant design docs.
 - Ownership: all agents contribute; Documentation Agent curates format and consistency.
 - PR hygiene: reference the updated work log entry in PR descriptions when applicable.
+- Before adding an entry, confirm the heading date is correct (use `date +%Y-%m-%d` local time) so the log remains strictly reverse-chronological.

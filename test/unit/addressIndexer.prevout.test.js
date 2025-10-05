@@ -64,7 +64,8 @@ const metricsMock = {
   recordCacheEvent: vi.fn(),
   recordZmqEvent: vi.fn(),
   recordWebsocketConnection: vi.fn(),
-  recordWebsocketMessage: vi.fn()
+  recordWebsocketMessage: vi.fn(),
+  recordAddressIndexerSyncStatus: vi.fn()
 };
 
 vi.mock('../../src/infra/metrics.js', () => ({
